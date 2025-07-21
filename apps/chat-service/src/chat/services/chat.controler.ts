@@ -1,4 +1,4 @@
-// apps/chat-service/src/chat/controllers/chat.controller.ts
+// apps/chat-service/src/chat/services/chat.controller.ts
 import {
   Controller,
   Get,

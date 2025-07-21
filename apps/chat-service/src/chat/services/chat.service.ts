@@ -238,7 +238,7 @@ export class ChatService {
     }
 
     // Pagination
-    const skip = (queryDto.page - 1) * queryDto.limit;
+    const skip = (queryDto.page! - 1) * queryDto.limit!;
     queryBuilder
       .orderBy('message.createdAt', 'ASC')
       .skip(skip)
@@ -252,7 +252,7 @@ export class ChatService {
         page: queryDto.page,
         limit: queryDto.limit,
         total,
-        totalPages: Math.ceil(total / queryDto.limit),
+        totalPages: Math.ceil(total / queryDto.limit!),
       },
     };
   }
