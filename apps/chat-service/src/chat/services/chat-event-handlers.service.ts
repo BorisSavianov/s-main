@@ -10,14 +10,6 @@ import { ChatMessage, SenderType } from '../entities/chat-message.entity';
 import { ChatSessionSummary } from '../entities/chat-session-summary.entity';
 import { AIService } from '../../ai/ai.service';
 
-import { EventEmitter2 } from '@nestjs/event-emitter';
-
-constructor(
-  ...
-  private eventEmitter: EventEmitter2,
-) {}
-
-
 interface SessionCreatedEvent {
   sessionId: string;
   userId?: string;
