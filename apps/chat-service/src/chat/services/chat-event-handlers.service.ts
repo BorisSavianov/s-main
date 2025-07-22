@@ -6,9 +6,17 @@ import { Queue } from 'bull';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ChatSession } from '../entities/chat-session.entity';
-import { ChatMessage } from '../entities/chat-message.entity';
+import { ChatMessage, SenderType } from '../entities/chat-message.entity';
 import { ChatSessionSummary } from '../entities/chat-session-summary.entity';
 import { AIService } from '../../ai/ai.service';
+
+import { EventEmitter2 } from '@nestjs/event-emitter';
+
+constructor(
+  ...
+  private eventEmitter: EventEmitter2,
+) {}
+
 
 interface SessionCreatedEvent {
   sessionId: string;
@@ -337,7 +345,7 @@ export class ChatEventHandlersService {
    */
   private async updateSessionActivity(sessionId: string): Promise<void> {
     await this.chatSessionRepository.update(sessionId, {
-      lastActivityAt: new Date(),
+      updatedAt: new Date(),
     });
   }
 
@@ -370,7 +378,7 @@ export class ChatEventHandlersService {
         totalMessages: event.messageCount,
         averageSentiment: sentimentStats?.avgSentiment || null,
         sessionMetrics: {
-          duration: event.duration,
+          duration: event.duration!,
           messageCount: event.messageCount,
           averageSentiment: sentimentStats?.avgSentiment || null,
           negativeMessages: parseInt(sentimentStats?.negativeMessages || '0'),
@@ -395,7 +403,7 @@ export class ChatEventHandlersService {
 
     if (result?.avgSentiment) {
       await this.chatSessionRepository.update(sessionId, {
-        averageSentiment: parseFloat(result.avgSentiment),
+        overallSentiment: parseInt(result.avgSentiment),
       });
     }
   }
@@ -447,9 +455,9 @@ export class ChatEventHandlersService {
   private async sendCrisisResourcesMessage(sessionId: string): Promise<void> {
     try {
       const crisisMessage = this.chatMessageRepository.create({
-        sessionId,
+        session: { id: sessionId } as ChatSession,
         senderId: null,
-        senderType: 'system',
+        senderType: SenderType.SYSTEM,
         content: `I notice you might be going through a difficult time. Please know that help is available:
 
 🚨 **Emergency Resources:**

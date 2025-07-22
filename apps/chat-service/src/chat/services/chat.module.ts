@@ -14,13 +14,11 @@ import { ChatSessionSummary } from '../entities/chat-session-summary.entity';
 import { MessageAttachment } from '../entities/message-attachment.entity';
 
 // Processors
-import { MessageProcessor } from '../processors/message.processor';
-import { SummaryProcessor } from '../processors/summary.processor';
+import { ChatProcessor } from '../processors/chat.processor';
 
 // Services
 import { SessionService } from './session.service';
 import { MessageService } from './message.service';
-import { AttachmentService } from './attachment.service';
 
 @Module({
   imports: [
@@ -39,14 +37,7 @@ import { AttachmentService } from './attachment.service';
     HttpModule,
   ],
   controllers: [ChatController],
-  providers: [
-    ChatService,
-    SessionService,
-    MessageService,
-    AttachmentService,
-    MessageProcessor,
-    SummaryProcessor,
-  ],
-  exports: [ChatService, SessionService, MessageService, AttachmentService],
+  providers: [ChatService, SessionService, MessageService, ChatProcessor],
+  exports: [ChatService, SessionService, MessageService, ChatProcessor],
 })
 export class ChatModule {}

@@ -160,6 +160,39 @@ Sentiment score:`;
   }
 
   /**
+   * Analyze overall session sentiment based on message contents
+   */
+  async analyzeSessionSentiment(messages: string[]): Promise<number> {
+    try {
+      const conversation = messages.join('\n');
+
+      const prompt = `Analyze the overall emotional sentiment of the following conversation. Respond with only a number between -1.0 (very negative) and 1.0 (very positive), where 0.0 is neutral:
+
+"${conversation}"
+
+Overall sentiment score:`;
+
+      const response = await this.callOllama(prompt, {
+        temperature: 0.1,
+        max_tokens: 10,
+      });
+
+      const scoreMatch = response.response.match(/-?\d+\.?\d*/);
+      if (scoreMatch) {
+        const score = parseFloat(scoreMatch[0]);
+        return Math.max(-1, Math.min(1, score));
+      }
+
+      return 0;
+    } catch (error) {
+      this.logger.error(
+        `Failed to analyze session sentiment: ${error.message}`,
+      );
+      return 0;
+    }
+  }
+
+  /**
    * Generate text embeddings for semantic search
    */
   async generateEmbedding(text: string): Promise<number[] | null> {

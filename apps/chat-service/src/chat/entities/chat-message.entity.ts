@@ -18,6 +18,7 @@ export enum SenderType {
   USER = 'user',
   AI = 'ai',
   COUNSELOR = 'counselor',
+  SYSTEM = 'system',
 }
 
 @Entity('chat_messages')

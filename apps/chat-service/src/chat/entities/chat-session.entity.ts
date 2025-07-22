@@ -72,6 +72,38 @@ export class ChatSession {
   })
   overallSentiment: number | null;
 
+  @ApiProperty({ description: 'Whether this session requires intervention' })
+  @Column({ name: 'requires_intervention', type: 'boolean', default: false })
+  requiresIntervention: boolean;
+
+  @ApiProperty({ description: 'Reason for intervention if flagged' })
+  @Column({ name: 'intervention_reason', type: 'text', nullable: true })
+  interventionReason: string | null;
+
+  @ApiProperty({ description: 'Total messages in the session' })
+  @Column({ name: 'total_messages', type: 'int', default: 0 })
+  totalMessages: number;
+
+  @ApiProperty({ description: 'Average sentiment score for the session' })
+  @Column({
+    name: 'average_sentiment',
+    type: 'decimal',
+    precision: 3,
+    scale: 2,
+    nullable: true,
+  })
+  averageSentiment: number | null;
+
+  @ApiProperty({ description: 'Additional session metrics' })
+  @Column('jsonb', { name: 'session_metrics', nullable: true })
+  sessionMetrics: {
+    duration?: number;
+    messageCount?: number;
+    averageSentiment?: number;
+    negativeMessages?: number;
+    positiveMessages?: number;
+  } | null;
+
   @ApiProperty({ description: 'Session creation timestamp' })
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
