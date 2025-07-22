@@ -369,14 +369,11 @@ services:
       - '8080:8080' # API Gateway
     depends_on:
       - auth-service
-      - user-service
       - chat-service
-      - ai-service
       - scheduler-service
       - video-service
       - mood-service
       - notification-service
-      - search-service
     healthcheck:
       test: ['CMD', 'nginx', '-t']
       interval: 30s

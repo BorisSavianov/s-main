@@ -1,8 +1,8 @@
 // apps/chat-service/src/websocket/websocket.module.ts
-import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { Module } from '@nestjs/common';
 
 import { WebSocketGateway } from './websocket.gateway';
 import { WebSocketService } from './websocket.service';

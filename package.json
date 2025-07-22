@@ -1,6 +1,6 @@
 {
   "name": "serenity-space",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "A mental health platform.",
   "author": "",
   "private": true,
@@ -10,8 +10,10 @@
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "start": "nest start",
     "start:auth": "nest start auth-service",
+    "start:chat": "nest start chat-service",
     "start:dev": "nest start --watch",
     "start:auth:dev": "nest start auth-service --watch",
+    "start:chat:dev": "nest start chat-service --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/apps/serenity-space/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
