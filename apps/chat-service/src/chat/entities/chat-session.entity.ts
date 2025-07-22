@@ -80,6 +80,22 @@ export class ChatSession {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
+  @ApiProperty({
+    description:
+      'Metadata about the session, such as setup completion and user type',
+  })
+  @Column('json', { nullable: true })
+  sessionMetadata: {
+    setupComplete?: boolean;
+    setupAt?: string;
+    userType?: 'anonymous' | 'registered';
+    initialSetupData?: {
+      userAgent: string;
+      ipHash: string;
+      referrer: string;
+    };
+  };
+
   // Relations
   @OneToMany(() => ChatMessage, (message) => message.session, {
     cascade: true,

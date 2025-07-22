@@ -385,6 +385,8 @@ Summary:`;
         );
       }
     }
+
+    throw new Error('Failed to get response from Ollama after all retries');
   }
 
   /**

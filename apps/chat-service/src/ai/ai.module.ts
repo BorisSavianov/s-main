@@ -5,7 +5,7 @@ import { HttpModule } from '@nestjs/axios';
 import { BullModule } from '@nestjs/bull';
 
 import { AIService } from './ai.service';
-import { AIController } from './ai.controller';
+import { AIController } from './ai.controler';
 import { AiContext } from './entities/ai-context.entity';
 
 // Processors

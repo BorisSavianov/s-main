@@ -12,6 +12,11 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 
 import { AIService } from './ai.service';
 
+interface AIResponse {
+  content: string;
+  metadata?: Record<string, any>;
+}
+
 interface GenerateResponseRequest {
   sessionId: string;
   userMessage: string;
@@ -56,7 +61,11 @@ export class AIController {
   })
   @ApiResponse({ status: 400, description: 'Invalid request data' })
   @ApiResponse({ status: 500, description: 'AI service error' })
-  async generateResponse(@Body() request: GenerateResponseRequest) {
+  async generateResponse(@Body() request: GenerateResponseRequest): Promise<{
+    success: boolean;
+    data: AIResponse;
+    timestamp: string;
+  }> {
     const context = {
       sessionId: request.sessionId,
       recentMessages: request.recentMessages,
