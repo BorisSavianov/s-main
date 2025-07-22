@@ -23,7 +23,7 @@ import {
   ApiQuery,
   ApiParam,
 } from '@nestjs/swagger';
-import { ChatService } from '../services/chat.service';
+import { ChatService } from './chat.service';
 import { CreateSessionDto } from '../dto/create-session.dto';
 import { SendMessageDto } from '../dto/send-message.dto';
 import { QueryMessagesDto } from '../dto/query-messages.dto';

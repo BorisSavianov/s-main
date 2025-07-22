@@ -46,7 +46,7 @@ export class AiContext {
   contextType: string;
 
   @ApiProperty({ description: 'Vector embedding for semantic search' })
-  @Column({ type: 'vector', length: 1536, nullable: true })
+  @Column({ type: 'varchar', length: 1536, nullable: true })
   embedding: number[] | null;
 
   @ApiProperty({ description: 'Relevance score for this context' })

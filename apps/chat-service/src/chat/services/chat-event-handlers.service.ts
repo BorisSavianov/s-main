@@ -464,7 +464,6 @@ export class ChatEventHandlersService {
 
 You don't have to go through this alone. Please reach out for professional help.`,
         contentType: 'text',
-        isSystemMessage: true,
       });
 
       await this.chatMessageRepository.save(crisisMessage);

@@ -9,7 +9,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 
 // Feature modules
-import { ChatModule } from './chat/chat.module';
+import { ChatModule } from './chat/services/chat.module';
 import { AiModule } from './ai/ai.module';
 import { SearchModule } from './search/search.module';
 import { AuthModule } from './auth/auth.module';
@@ -126,7 +126,9 @@ import { aiConfig } from './config/ai.config';
         useFactory: (configService: ConfigService) => ({
           transport: Transport.RMQ,
           options: {
-            urls: [configService.get<string>('RABBITMQ_URL')],
+            urls: [configService.get<string>('RABBITMQ_URL')].filter(
+              Boolean,
+            ) as string[],
             queue: 'chat_queue',
             queueOptions: {
               durable: true,
