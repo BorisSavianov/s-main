@@ -170,21 +170,20 @@ services:
       - DATABASE_URL=postgresql://postgres:mentalhealth2024@postgres:5432/mentalhealth
       - REDIS_URL=redis://:mentalhealth2024@redis:6379
       - RABBITMQ_URL=amqp://mentalhealth:mentalhealth2024@rabbitmq:5672
-      - AI_SERVICE_URL=http://ai-service:4003
       - AUTH_SERVICE_URL=http://auth-service:4000
-      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
-      - JWT_EXPIRES_IN=24h
-      - BCRYPT_ROUNDS=12
-      - GOOGLE_CLIENT_ID=265701614421-9qahv7sm5ib3fqe5m904g8ql2tdf5d9g.apps.googleusercontent.com
-      - GOOGLE_CLIENT_SECRET=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
-      - GOOGLE_CALLBACK_URL=http://localhost:4000/auth/google/callback
-      - SMTP_HOST=smtp.gmail.com
-      - SMTP_PORT=465
-      - SMTP_SECURE=true
-      - SMTP_USER=bsavyanov@gmail.com
-      - SMTP_PASS=mjuw vofq dljx cyud
-      - SMTP_FROM="SerenitySpace <bsavyanov@gmail.com>"
-      - FRONTEND_URL=http://localhost:4000
+      # - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      # - JWT_EXPIRES_IN=24h
+      # - BCRYPT_ROUNDS=12
+      # - GOOGLE_CLIENT_ID=265701614421-9qahv7sm5ib3fqe5m904g8ql2tdf5d9g.apps.googleusercontent.com
+      # - GOOGLE_CLIENT_SECRET=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
+      # - GOOGLE_CALLBACK_URL=http://localhost:4000/auth/google/callback
+      # - SMTP_HOST=smtp.gmail.com
+      # - SMTP_PORT=465
+      # - SMTP_SECURE=true
+      # - SMTP_USER=bsavyanov@gmail.com
+      # - SMTP_PASS=mjuw vofq dljx cyud
+      # - SMTP_FROM="SerenitySpace <bsavyanov@gmail.com>"
+      # - FRONTEND_URL=http://localhost:4000
 
     ports:
       - '4002:4002'
@@ -205,37 +204,6 @@ services:
     networks:
       - serenity_space_network
 
-  ai-service:
-    build:
-      context: ./apps/ai-service
-      dockerfile: Dockerfile
-    container_name: serenity_space_ai
-    environment:
-      - NODE_ENV=development
-      - PORT=4003
-      - OLLAMA_URL=http://ollama:11434
-      - REDIS_URL=redis://:mentalhealth2024@redis:6379
-      - RABBITMQ_URL=amqp://mentalhealth:mentalhealth2024@rabbitmq:5672
-      - DEFAULT_MODEL=llama3.2:3b
-    ports:
-      - '4003:4003'
-    depends_on:
-      ollama:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:4003/health']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    restart: unless-stopped
-    networks:
-      - serenity_space_network
-
   scheduler-service:
     build:
       context: ./apps/scheduler-service
@@ -243,14 +211,14 @@ services:
     container_name: serenity_space_scheduler
     environment:
       - NODE_ENV=development
-      - PORT=4004
+      - PORT=4003
       - DATABASE_URL=postgresql://postgres:mentalhealth2024@postgres:5432/mentalhealth
       - REDIS_URL=redis://:mentalhealth2024@redis:6379
       - RABBITMQ_URL=amqp://mentalhealth:mentalhealth2024@rabbitmq:5672
       - AUTH_SERVICE_URL=http://auth-service:4000
-      - NOTIFICATION_SERVICE_URL=http://notification-service:4007
+      - NOTIFICATION_SERVICE_URL=http://notification-service:4006
     ports:
-      - '4004:4004'
+      - '4003:4003'
     depends_on:
       postgres:
         condition: service_healthy
@@ -261,7 +229,7 @@ services:
       auth-service:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:4004/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:4003/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -277,19 +245,19 @@ services:
     container_name: serenity_space_video
     environment:
       - NODE_ENV=development
-      - PORT=4005
+      - PORT=4004
       - REDIS_URL=redis://:mentalhealth2024@redis:6379
       - AUTH_SERVICE_URL=http://auth-service:4000
       - TURN_SECRET=your-turn-secret-change-in-production
     ports:
-      - '4005:4005'
+      - '4004:4004'
     depends_on:
       redis:
         condition: service_healthy
       auth-service:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:4005/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:4004/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -305,12 +273,12 @@ services:
     container_name: serenity_space_mood
     environment:
       - NODE_ENV=development
-      - PORT=4006
+      - PORT=4005
       - DATABASE_URL=postgresql://postgres:mentalhealth2024@postgres:5432/mentalhealth
       - REDIS_URL=redis://:mentalhealth2024@redis:6379
       - AUTH_SERVICE_URL=http://auth-service:4000
     ports:
-      - '4006:4006'
+      - '4005:4005'
     depends_on:
       postgres:
         condition: service_healthy
@@ -319,7 +287,7 @@ services:
       auth-service:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:4006/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:4005/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -335,7 +303,7 @@ services:
     container_name: serenity_space_notification
     environment:
       - NODE_ENV=development
-      - PORT=4007
+      - PORT=4006
       - REDIS_URL=redis://:mentalhealth2024@redis:6379
       - RABBITMQ_URL=amqp://mentalhealth:mentalhealth2024@rabbitmq:5672
       - SMTP_HOST=smtp.gmail.com
@@ -344,47 +312,14 @@ services:
       - SMTP_PASS=your-app-password
       - FROM_EMAIL=support@mentalhealth.app
     ports:
-      - '4007:4007'
+      - '4006:4006'
     depends_on:
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:4007/health']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    restart: unless-stopped
-    networks:
-      - serenity_space_network
-
-  search-service:
-    build:
-      context: ./apps/search-service
-      dockerfile: Dockerfile
-    container_name: serenity_space_search
-    environment:
-      - NODE_ENV=development
-      - PORT=4008
-      - DATABASE_URL=postgresql://postgres:mentalhealth2024@postgres:5432/mentalhealth
-      - REDIS_URL=redis://:mentalhealth2024@redis:6379
-      - AI_SERVICE_URL=http://ai-service:4003
-      - AUTH_SERVICE_URL=http://auth-service:4000
-    ports:
-      - '4008:4008'
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      ai-service:
-        condition: service_healthy
-      auth-service:
-        condition: service_healthy
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:4008/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:4006/health']
       interval: 30s
       timeout: 10s
       retries: 3

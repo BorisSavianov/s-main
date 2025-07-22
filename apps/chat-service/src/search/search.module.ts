@@ -25,13 +25,14 @@ import { AiContext } from '../ai/entities/ai-context.entity';
           'http://elasticsearch:9200',
         ),
         auth: {
-          username: configService.get<string>('ELASTICSEARCH_USERNAME'),
-          password: configService.get<string>('ELASTICSEARCH_PASSWORD'),
+          username: configService.get<string>('ELASTICSEARCH_USERNAME') ?? '',
+          password: configService.get<string>('ELASTICSEARCH_PASSWORD') ?? '',
         },
         maxRetries: 3,
         requestTimeout: 10000,
         sniffOnStart: false,
       }),
+
       inject: [ConfigService],
     }),
     BullModule.registerQueue({

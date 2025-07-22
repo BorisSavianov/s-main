@@ -33,7 +33,7 @@ interface SearchResult {
   highlights?: string[];
 }
 
-interface SearchResponse {
+export interface SearchResponse {
   results: SearchResult[];
   total: number;
   took: number;
@@ -75,62 +75,60 @@ export class SearchService {
       if (!indexExists) {
         await this.elasticsearchService.indices.create({
           index: this.INDEX_NAME,
-          body: {
-            mappings: {
-              properties: {
-                id: { type: 'keyword' },
-                sessionId: { type: 'keyword' },
-                senderId: { type: 'keyword' },
-                senderType: { type: 'keyword' },
-                content: {
-                  type: 'text',
-                  analyzer: 'standard',
-                  fields: {
-                    keyword: { type: 'keyword' },
-                    suggest: {
-                      type: 'completion',
-                      analyzer: 'simple',
-                    },
+          mappings: {
+            properties: {
+              id: { type: 'keyword' },
+              sessionId: { type: 'keyword' },
+              senderId: { type: 'keyword' },
+              senderType: { type: 'keyword' },
+              content: {
+                type: 'text',
+                analyzer: 'standard',
+                fields: {
+                  keyword: { type: 'keyword' },
+                  suggest: {
+                    type: 'completion',
+                    analyzer: 'simple',
                   },
                 },
-                contentType: { type: 'keyword' },
-                sentimentScore: { type: 'float' },
-                isflagged: { type: 'boolean' },
-                flagReason: { type: 'text' },
-                embedding: {
-                  type: 'dense_vector',
-                  dims: 1536,
-                },
-                createdAt: { type: 'date' },
-                updatedAt: { type: 'date' },
               },
+              contentType: { type: 'keyword' },
+              sentimentScore: { type: 'float' },
+              isflagged: { type: 'boolean' },
+              flagReason: { type: 'text' },
+              embedding: {
+                type: 'dense_vector',
+                dims: 1536,
+              },
+              createdAt: { type: 'date' },
+              updatedAt: { type: 'date' },
             },
-            settings: {
-              number_of_shards: 1,
-              number_of_replicas: 0,
-              analysis: {
-                analyzer: {
-                  mental_health_analyzer: {
-                    type: 'custom',
-                    tokenizer: 'standard',
-                    filter: [
-                      'lowercase',
-                      'stop',
-                      'stemmer',
-                      'mental_health_synonyms',
-                    ],
-                  },
+          },
+          settings: {
+            number_of_shards: 1,
+            number_of_replicas: 0,
+            analysis: {
+              analyzer: {
+                mental_health_analyzer: {
+                  type: 'custom',
+                  tokenizer: 'standard',
+                  filter: [
+                    'lowercase',
+                    'stop',
+                    'stemmer',
+                    'mental_health_synonyms',
+                  ],
                 },
-                filter: {
-                  mental_health_synonyms: {
-                    type: 'synonym',
-                    synonyms: [
-                      'sad,depressed,down,blue',
-                      'anxious,worried,nervous,stressed',
-                      'angry,mad,furious,irritated',
-                      'happy,joyful,glad,cheerful',
-                    ],
-                  },
+              },
+              filter: {
+                mental_health_synonyms: {
+                  type: 'synonym',
+                  synonyms: [
+                    'sad,depressed,down,blue',
+                    'anxious,worried,nervous,stressed',
+                    'angry,mad,furious,irritated',
+                    'happy,joyful,glad,cheerful',
+                  ],
                 },
               },
             },
@@ -198,7 +196,7 @@ export class SearchService {
       }
 
       // Don't return flagged messages unless specifically requested
-      filter.push({ term: { isFlaged: false } });
+      filter.push({ term: { isFlagged: false } });
 
       const searchBody = {
         query: {
@@ -243,10 +241,10 @@ export class SearchService {
 
       const response = await this.elasticsearchService.search({
         index: this.INDEX_NAME,
-        body: searchBody,
+        body: searchBody as any,
       });
 
-      return this.formatSearchResponse(response.body);
+      return this.formatSearchResponse(response);
     } catch (error) {
       this.logger.error(`Search failed: ${error.message}`, error.stack);
       throw new Error('Search operation failed');
@@ -288,27 +286,25 @@ export class SearchService {
 
       const response = await this.elasticsearchService.search({
         index: this.INDEX_NAME,
-        body: {
-          suggest: {
-            content_suggest: {
-              prefix,
-              completion: {
-                field: 'content.suggest',
-                size: 10,
-              },
+        suggest: {
+          content_suggest: {
+            prefix,
+            completion: {
+              field: 'content.suggest',
+              size: 10,
             },
           },
-          query: {
-            bool: {
-              filter,
-            },
+        },
+        query: {
+          bool: {
+            filter,
           },
         },
       });
 
-      return response.body.suggest.content_suggest[0].options.map(
-        (option: any) => option.text,
-      );
+      const suggestions =
+        (response as any).suggest?.content_suggest?.[0]?.options || [];
+      return suggestions.map((option: any) => option.text);
     } catch (error) {
       this.logger.error(`Get suggestions failed: ${error.message}`);
       return [];
@@ -320,10 +316,10 @@ export class SearchService {
    */
   async indexMessage(message: ChatMessage): Promise<void> {
     try {
-      await this.elasticsearchService.index({
+      await this.elasticsearchService.index<Record<string, any>>({
         index: this.INDEX_NAME,
         id: message.id,
-        body: {
+        document: {
           id: message.id,
           sessionId: message.sessionId,
           senderId: message.senderId,
@@ -331,7 +327,7 @@ export class SearchService {
           content: message.content,
           contentType: message.contentType,
           sentimentScore: message.sentimentScore,
-          isFlaged: message.isFlagged,
+          isFlagged: message.isFlagged,
           flagReason: message.flagReason,
           embedding: message.embedding,
           createdAt: message.createdAt,
@@ -386,7 +382,7 @@ export class SearchService {
           content: message.content,
           contentType: message.contentType,
           sentimentScore: message.sentimentScore,
-          isFlaged: message.isFlagged,
+          isFlagged: message.isFlagged,
           flagReason: message.flagReason,
           embedding: message.embedding,
           createdAt: message.createdAt,
@@ -442,44 +438,43 @@ export class SearchService {
 
       const response = await this.elasticsearchService.search({
         index: this.INDEX_NAME,
-        body: {
-          size: 0,
-          query: {
-            bool: { filter },
+
+        size: 0,
+        query: {
+          bool: { filter },
+        },
+        aggs: {
+          message_count_over_time: {
+            date_histogram: {
+              field: 'createdAt',
+              calendar_interval: 'hour',
+            },
+            aggs: {
+              sentiment_avg: {
+                avg: { field: 'sentimentScore' },
+              },
+            },
           },
-          aggs: {
-            message_count_over_time: {
-              date_histogram: {
-                field: 'createdAt',
-                calendar_interval: 'hour',
-              },
-              aggs: {
-                sentiment_avg: {
-                  avg: { field: 'sentimentScore' },
-                },
-              },
+          sender_distribution: {
+            terms: { field: 'senderType' },
+          },
+          sentiment_distribution: {
+            histogram: {
+              field: 'sentimentScore',
+              interval: 0.2,
+              min_doc_count: 1,
             },
-            sender_distribution: {
-              terms: { field: 'senderType' },
-            },
-            sentiment_distribution: {
-              histogram: {
-                field: 'sentimentScore',
-                interval: 0.2,
-                min_doc_count: 1,
-              },
-            },
-            top_keywords: {
-              significant_text: {
-                field: 'content',
-                size: 10,
-              },
+          },
+          top_keywords: {
+            significant_text: {
+              field: 'content',
+              size: 10,
             },
           },
         },
       });
 
-      return response.body.aggregations;
+      return response.aggregations;
     } catch (error) {
       this.logger.error(`Analytics query failed: ${error.message}`);
       throw error;
@@ -494,7 +489,7 @@ export class SearchService {
       const health = await this.elasticsearchService.cluster.health();
       return {
         status: 'healthy',
-        cluster: health.body,
+        cluster: health,
       };
     } catch (error) {
       return {
