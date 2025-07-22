@@ -35,7 +35,7 @@ import { JwtAuthGuard } from '../../../../auth-service/src/auth/guards/jwt-auth.
 import { RolesGuard } from '../../../../auth-service/src/auth/guards/roles.guard';
 import { Roles } from '../../../../auth-service/src/auth/decorators/roles.decorator';
 import { GetUser } from '../../../../auth-service/src/auth/decorators/get-user.decorator';
-import { UserRole } from '../../auth/enums/user-role.enum';
+import { UserRole } from '../../../../auth-service/src/database/entities/user.entity';
 
 @ApiTags('Chat')
 @Controller('api/v1/chat')

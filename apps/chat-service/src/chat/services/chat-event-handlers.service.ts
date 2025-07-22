@@ -1,6 +1,6 @@
 // apps/chat-service/src/chat/services/chat-event-handlers.service.ts
 import { Injectable, Logger } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
+import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -58,6 +58,7 @@ export class ChatEventHandlersService {
     @InjectQueue('ai-processing')
     private aiQueue: Queue,
     private aiService: AIService,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   @OnEvent('session.created')
@@ -141,7 +142,7 @@ export class ChatEventHandlersService {
       this.logger.debug(`Message sent: ${event.messageId}`);
 
       // Queue content moderation
-      await this.aiQueue.add(
+      await this.chatQueue.add(
         'moderate-content',
         {
           messageId: event.messageId,
@@ -159,7 +160,7 @@ export class ChatEventHandlersService {
 
       // Queue sentiment analysis for user messages
       if (event.senderType === 'user') {
-        await this.aiQueue.add(
+        await this.chatQueue.add(
           'analyze-sentiment',
           {
             messageId: event.messageId,
@@ -184,7 +185,7 @@ export class ChatEventHandlersService {
       this.logger.debug(`AI response generated: ${event.messageId}`);
 
       // Queue response quality analysis
-      await this.aiQueue.add(
+      await this.chatQueue.add(
         'analyze-response-quality',
         {
           messageId: event.messageId,
@@ -395,7 +396,7 @@ export class ChatEventHandlersService {
 
     if (result?.avgSentiment) {
       await this.chatSessionRepository.update(sessionId, {
-        overallSentiment: parseInt(result.avgSentiment),
+        overallSentiment: parseFloat(result.avgSentiment),
       });
     }
   }
@@ -413,7 +414,7 @@ export class ChatEventHandlersService {
       });
 
       const userMessages = recentMessages.filter(
-        (msg) => msg.senderType === 'user',
+        (msg) => msg.senderType === SenderType.USER,
       );
 
       // Check for concerning patterns
@@ -447,7 +448,7 @@ export class ChatEventHandlersService {
   private async sendCrisisResourcesMessage(sessionId: string): Promise<void> {
     try {
       const crisisMessage = this.chatMessageRepository.create({
-        session: { id: sessionId } as ChatSession,
+        sessionId,
         senderId: null,
         senderType: SenderType.SYSTEM,
         content: `I notice you might be going through a difficult time. Please know that help is available:
