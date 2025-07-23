@@ -12,7 +12,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ChatModule } from './chat/services/chat.module';
 import { AiModule } from './ai/ai.module';
 import { SearchModule } from './search/search.module';
-import { AuthModule } from './auth/auth.module';
+import { AuthModule } from '../../auth-service/src/auth/auth.module';
 import { WebSocketModule } from './websocket/websocket.module';
 
 // Entities

@@ -18,6 +18,7 @@ import { WebSocketService } from './websocket.service';
 import { ConnectionManager } from './connection.manager';
 import { WsAuthGuard } from './guards/ws-auth.guard';
 import { WsThrottleGuard } from './guards/ws-throttle.guard';
+import { SenderType } from '../chat/entities/chat-message.entity';
 
 // DTOs
 interface JoinSessionDto {
@@ -238,7 +239,7 @@ export class WebSocketGateway
       const message = await this.websocketService.createMessage({
         sessionId,
         senderId: userId,
-        senderType: 'user',
+        senderType: SenderType.USER,
         content,
         contentType: contentType || 'text',
       });
@@ -253,7 +254,7 @@ export class WebSocketGateway
       client.emit('messageStatus', {
         messageId: message.id,
         status: 'delivered',
-        tempId: data.tempId,
+        // tempId: data.tempId,
       });
 
       // Trigger AI response if needed
@@ -268,11 +269,10 @@ export class WebSocketGateway
         messageId: null,
         status: 'failed',
         error: error.message,
-        tempId: data.tempId,
+        // tempId: data.tempId,
       });
     }
   }
-
   @SubscribeMessage('typing')
   @UseGuards(WsThrottleGuard)
   async handleTyping(
@@ -319,7 +319,7 @@ export class WebSocketGateway
         throw new WsException('Not a member of this session');
       }
 
-      await this.websocketService.markMessagesAsRead(messageIds, userId);
+      await this.websocketService.markMessagesAsRead(messageIds, userId!);
 
       // Notify others in the session
       client.to(sessionId).emit('messagesRead', {
@@ -387,8 +387,8 @@ export class WebSocketGateway
       // Create AI message
       const aiMessage = await this.websocketService.createMessage({
         sessionId,
-        senderId: null,
-        senderType: 'ai',
+        senderId: undefined,
+        senderType: SenderType.AI,
         content: aiResponse,
         contentType: 'text',
       });

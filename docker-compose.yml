@@ -171,20 +171,6 @@ services:
       - REDIS_URL=redis://:mentalhealth2024@redis:6379
       - RABBITMQ_URL=amqp://mentalhealth:mentalhealth2024@rabbitmq:5672
       - AUTH_SERVICE_URL=http://auth-service:4000
-      # - JWT_SECRET=your-super-secret-jwt-key-change-in-production
-      # - JWT_EXPIRES_IN=24h
-      # - BCRYPT_ROUNDS=12
-      # - GOOGLE_CLIENT_ID=265701614421-9qahv7sm5ib3fqe5m904g8ql2tdf5d9g.apps.googleusercontent.com
-      # - GOOGLE_CLIENT_SECRET=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
-      # - GOOGLE_CALLBACK_URL=http://localhost:4000/auth/google/callback
-      # - SMTP_HOST=smtp.gmail.com
-      # - SMTP_PORT=465
-      # - SMTP_SECURE=true
-      # - SMTP_USER=bsavyanov@gmail.com
-      # - SMTP_PASS=mjuw vofq dljx cyud
-      # - SMTP_FROM="SerenitySpace <bsavyanov@gmail.com>"
-      # - FRONTEND_URL=http://localhost:4000
-
     ports:
       - '4002:4002'
     depends_on:
