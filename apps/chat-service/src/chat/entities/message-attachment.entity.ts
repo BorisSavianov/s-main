@@ -35,9 +35,9 @@ export class MessageAttachment {
   @Column({ name: 'file_size', type: 'integer', nullable: true })
   fileSize: number | null;
 
-  @ApiProperty({ description: 'MIME type of the file' })
-  @Column({ name: 'file_type', length: 100, nullable: true })
-  fileType: string | null;
+  // @ApiProperty({ description: 'MIME type of the file' })
+  // @Column({ name: 'file_type', length: 100, nullable: true })
+  // fileType: string | null;
 
   @ApiProperty({ description: 'Whether file is an image' })
   @Column({ name: 'is_image', default: false })

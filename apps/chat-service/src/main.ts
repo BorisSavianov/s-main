@@ -69,3 +69,5 @@ async function bootstrap() {
   logger.log(`🚀 Chat service running on port ${port}`);
   logger.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
 }
+
+bootstrap();

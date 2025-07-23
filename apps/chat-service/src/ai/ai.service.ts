@@ -48,12 +48,22 @@ interface OllamaResponse {
   eval_duration?: number;
 }
 
+interface OllamaEmbeddingRequest {
+  model: string;
+  prompt: string;
+}
+
+interface OllamaEmbeddingResponse {
+  embedding: number[];
+}
+
 @Injectable()
 export class AIService {
   private readonly logger = new Logger(AIService.name);
   private readonly ollamaBaseUrl: string;
   private readonly defaultModel: string;
   private readonly maxRetries: number = 3;
+  private readonly embeddingModel: string;
 
   constructor(
     private readonly configService: ConfigService,
@@ -78,16 +88,13 @@ export class AIService {
    */
   async generateResponse(context: ChatContext): Promise<AIResponse> {
     try {
-      // Store context for future reference
       await this.storeContext(context);
 
-      const prompt = this.buildPrompt(context);
+      const prompt = await this.buildPrompt(context);
       const ollamaResponse = await this.callOllama(prompt);
 
-      // Extract sentiment from the response or analyze separately
       const sentiment = await this.analyzeSentiment(context.userMessage);
 
-      // Queue background tasks for embeddings and analysis
       await this.queueBackgroundTasks(context, ollamaResponse);
 
       return {
@@ -101,13 +108,326 @@ export class AIService {
         error.stack,
       );
 
-      // Return fallback response
       return {
         content:
           "I'm having trouble processing your message right now. Could you please try again?",
         sentiment: 0,
         confidence: 0.5,
       };
+    }
+  }
+
+  /**
+   * Get embedding statistics for a session
+   */
+  async getEmbeddingStats(sessionId: string): Promise<{
+    totalEmbeddings: number;
+    averageSimilarity: number;
+    embeddingCoverage: number;
+    lastGenerated: Date | null;
+  }> {
+    try {
+      const embeddingContexts = await this.aiContextRepository.find({
+        where: {
+          sessionId,
+          contextType: 'embedding',
+        },
+        order: { createdAt: 'DESC' },
+      });
+
+      const totalContexts = await this.aiContextRepository.count({
+        where: { sessionId },
+      });
+
+      const totalEmbeddings = embeddingContexts.length;
+      const embeddingCoverage =
+        totalContexts > 0 ? (totalEmbeddings / totalContexts) * 100 : 0;
+      const lastGenerated =
+        embeddingContexts.length > 0 ? embeddingContexts[0].createdAt : null;
+
+      // Calculate average similarity (this is a placeholder - would need actual similarity calculations)
+      const averageSimilarity = 0.75; // Placeholder value
+
+      return {
+        totalEmbeddings,
+        averageSimilarity,
+        embeddingCoverage,
+        lastGenerated,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get embedding stats: ${error.message}`);
+      return {
+        totalEmbeddings: 0,
+        averageSimilarity: 0,
+        embeddingCoverage: 0,
+        lastGenerated: null,
+      };
+    }
+  }
+
+  /**
+   * Batch generate embeddings for existing session messages
+   */
+  async batchGenerateEmbeddings(sessionId: string): Promise<void> {
+    try {
+      await this.aiQueue.add(
+        'batch-generate-embeddings',
+        { sessionId },
+        {
+          delay: 5000, // Delay to avoid overwhelming the system
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 5000,
+          },
+        },
+      );
+
+      this.logger.debug(
+        `Queued batch embedding generation for session ${sessionId}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to queue batch embedding generation: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Find and cluster similar conversations
+   */
+  async findSimilarConversations(
+    sessionId: string,
+    limit: number = 3,
+  ): Promise<
+    Array<{
+      sessionId: string;
+      similarity: number;
+      messageCount: number;
+      lastActivity: Date;
+    }>
+  > {
+    try {
+      // Get the current session's embedding centroid
+      const sessionEmbeddings = await this.aiContextRepository.find({
+        where: {
+          sessionId,
+          contextType: 'embedding',
+        },
+        select: ['embedding'],
+      });
+
+      if (sessionEmbeddings.length === 0) {
+        return [];
+      }
+
+      // Calculate centroid (average embedding)
+      const centroid = this.calculateEmbeddingCentroid(
+        sessionEmbeddings
+          .map((ctx) => ctx.embedding)
+          .filter((emb) => emb !== null),
+      );
+
+      if (!centroid) {
+        return [];
+      }
+
+      const vectorString = `[${centroid.join(',')}]`;
+
+      // Find similar sessions
+      const similarSessions = await this.aiContextRepository
+        .createQueryBuilder('context')
+        .select([
+          'context.sessionId',
+          'COUNT(*) as messageCount',
+          'MAX(context.createdAt) as lastActivity',
+          `AVG(context.embedding <-> '${vectorString}'::vector) as avgDistance`,
+        ])
+        .where('context.sessionId != :sessionId', { sessionId })
+        .andWhere('context.contextType = :contextType', {
+          contextType: 'embedding',
+        })
+        .andWhere('context.embedding IS NOT NULL')
+        .groupBy('context.sessionId')
+        .having(
+          `AVG(context.embedding <-> '${vectorString}'::vector) < :threshold`,
+          {
+            threshold: 0.5,
+          },
+        )
+        .orderBy('avgDistance', 'ASC')
+        .limit(limit)
+        .getRawMany();
+
+      return similarSessions.map((session) => ({
+        sessionId: session.context_sessionId,
+        similarity: 1 - session.avgDistance,
+        messageCount: parseInt(session.messageCount),
+        lastActivity: session.lastActivity,
+      }));
+    } catch (error) {
+      this.logger.error(
+        `Failed to find similar conversations: ${error.message}`,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Calculate centroid (average) of multiple embeddings
+   */
+  private calculateEmbeddingCentroid(embeddings: number[][]): number[] | null {
+    if (embeddings.length === 0) return null;
+
+    const dimensions = embeddings[0].length;
+    const centroid = new Array(dimensions).fill(0);
+
+    for (const embedding of embeddings) {
+      for (let i = 0; i < dimensions; i++) {
+        centroid[i] += embedding[i];
+      }
+    }
+
+    // Average and normalize
+    for (let i = 0; i < dimensions; i++) {
+      centroid[i] /= embeddings.length;
+    }
+
+    // Normalize the vector
+    const magnitude = Math.sqrt(
+      centroid.reduce((sum, val) => sum + val * val, 0),
+    );
+    return magnitude > 0 ? centroid.map((val) => val / magnitude) : centroid;
+  }
+
+  /**
+   * Enhanced context retrieval with hybrid search (semantic + keyword)
+   */
+  async getEnhancedContext(query: string, sessionId: string): Promise<string> {
+    try {
+      // Get semantic matches
+      const semanticMatches = await this.findSimilarMessages(
+        query,
+        sessionId,
+        3,
+        0.7,
+      );
+
+      // Get keyword matches (fallback)
+      const keywordMatches = await this.findKeywordMatches(query, sessionId, 2);
+
+      // Combine and deduplicate
+      const allMatches = [...semanticMatches];
+
+      // Add keyword matches that aren't already included
+      for (const keywordMatch of keywordMatches) {
+        const isDuplicate = allMatches.some(
+          (match) =>
+            Math.abs(
+              match.createdAt.getTime() - keywordMatch.createdAt.getTime(),
+            ) < 1000,
+        );
+        if (!isDuplicate) {
+          allMatches.push({
+            ...keywordMatch,
+            similarity: keywordMatch.similarity ?? 0, // default to 0 if undefined
+          });
+        }
+      }
+
+      if (allMatches.length === 0) {
+        return '';
+      }
+
+      // Sort by relevance (semantic similarity first, then recency)
+      allMatches.sort((a, b) => {
+        if (a.similarity && b.similarity) {
+          return b.similarity - a.similarity;
+        }
+        return b.createdAt.getTime() - a.createdAt.getTime();
+      });
+
+      const contextParts = allMatches.slice(0, 5).map((msg, index) => {
+        const similarityText = msg.similarity
+          ? ` (Sim: ${msg.similarity.toFixed(2)})`
+          : '';
+        return `[Context ${index + 1}${similarityText}]: ${msg.content}`;
+      });
+
+      return `\nRelevant context:\n${contextParts.join('\n')}\n`;
+    } catch (error) {
+      this.logger.error(`Failed to get enhanced context: ${error.message}`);
+      return '';
+    }
+  }
+
+  /**
+   * Fallback keyword-based search
+   */
+  private async findKeywordMatches(
+    query: string,
+    sessionId: string,
+    limit: number = 5,
+  ): Promise<Array<{ content: string; similarity?: number; createdAt: Date }>> {
+    try {
+      const keywords = query
+        .toLowerCase()
+        .split(' ')
+        .filter((word) => word.length > 2);
+
+      if (keywords.length === 0) {
+        return [];
+      }
+
+      const contexts = await this.aiContextRepository
+        .createQueryBuilder('context')
+        .where('context.sessionId = :sessionId', { sessionId })
+        .andWhere('context.contextType IN (:...types)', {
+          types: ['conversation', 'text'],
+        })
+        .orderBy('context.createdAt', 'DESC')
+        .limit(50) // Search recent messages
+        .getMany();
+
+      const matches: Array<{
+        content: string;
+        createdAt: Date;
+        score: number;
+      }> = [];
+
+      for (const context of contexts) {
+        const text =
+          context.contextData?.userMessage || context.contextData?.text || '';
+        if (!text) continue;
+
+        const textLower = text.toLowerCase();
+        let score = 0;
+
+        for (const keyword of keywords) {
+          if (textLower.includes(keyword)) {
+            score += 1;
+          }
+        }
+
+        if (score > 0) {
+          matches.push({
+            content: text,
+            createdAt: context.createdAt,
+            score,
+          });
+        }
+      }
+
+      return matches
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit)
+        .map((match) => ({
+          content: match.content,
+          createdAt: match.createdAt,
+        }));
+    } catch (error) {
+      this.logger.error(`Failed to find keyword matches: ${error.message}`);
+      return [];
     }
   }
 
@@ -193,20 +513,115 @@ Overall sentiment score:`;
   }
 
   /**
-   * Generate text embeddings for semantic search
+   * Generate text embeddings for semantic search using Nomic Embed
    */
   async generateEmbedding(text: string): Promise<number[] | null> {
     try {
-      // This would require a model that supports embeddings
-      // For now, we'll return null and rely on text-based search
-      // In production, you'd use a dedicated embedding model like sentence-transformers
-      this.logger.warn(
-        'Embedding generation not implemented - using text search fallback',
+      const requestData: OllamaEmbeddingRequest = {
+        model: this.embeddingModel,
+        prompt: text,
+      };
+
+      const response = await firstValueFrom(
+        this.httpService.post<OllamaEmbeddingResponse>(
+          `${this.ollamaBaseUrl}/api/embeddings`,
+          requestData,
+          {
+            timeout: 30000,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          },
+        ),
       );
-      return null;
+
+      if (response.data && response.data.embedding) {
+        return response.data.embedding;
+      }
+
+      throw new Error('Invalid embedding response from Ollama');
     } catch (error) {
       this.logger.error(`Failed to generate embedding: ${error.message}`);
       return null;
+    }
+  }
+
+  /**
+   * Find semantically similar messages using embeddings
+   */
+  async findSimilarMessages(
+    query: string,
+    sessionId: string,
+    limit: number = 5,
+    threshold: number = 0.7,
+  ): Promise<Array<{ content: string; similarity: number; createdAt: Date }>> {
+    try {
+      const queryEmbedding = await this.generateEmbedding(query);
+      if (!queryEmbedding) {
+        return [];
+      }
+
+      // Convert embedding to PostgreSQL vector format
+      const vectorString = `[${queryEmbedding.join(',')}]`;
+
+      const similarContexts = await this.aiContextRepository
+        .createQueryBuilder('context')
+        .select([
+          'context.contextData',
+          'context.createdAt',
+          `(context.embedding <-> '${vectorString}'::vector) as similarity`,
+        ])
+        .where('context.sessionId = :sessionId', { sessionId })
+        .andWhere('context.contextType = :contextType', {
+          contextType: 'embedding',
+        })
+        .andWhere('context.embedding IS NOT NULL')
+        .andWhere(
+          `(context.embedding <-> '${vectorString}'::vector) < :threshold`,
+          {
+            threshold: 1 - threshold, // Convert similarity to distance
+          },
+        )
+        .orderBy('similarity', 'ASC')
+        .limit(limit)
+        .getRawMany();
+
+      return similarContexts.map((ctx) => ({
+        content: ctx.context_contextData?.text || '',
+        similarity: 1 - ctx.similarity, // Convert distance back to similarity
+        createdAt: ctx.context_createdAt,
+      }));
+    } catch (error) {
+      this.logger.error(`Failed to find similar messages: ${error.message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Retrieve relevant context using semantic search
+   */
+  async getRelevantContext(query: string, sessionId: string): Promise<string> {
+    try {
+      const similarMessages = await this.findSimilarMessages(
+        query,
+        sessionId,
+        5,
+        0.7,
+      );
+
+      if (similarMessages.length === 0) {
+        return '';
+      }
+
+      const contextParts = similarMessages.map(
+        (msg, index) =>
+          `[Context ${index + 1} - Similarity: ${msg.similarity.toFixed(2)}]: ${msg.content}`,
+      );
+
+      return `\nRelevant conversation context:\n${contextParts.join('\n')}\n`;
+    } catch (error) {
+      this.logger.error(`Failed to get relevant context: ${error.message}`);
+      return '';
     }
   }
 
@@ -329,17 +744,23 @@ Topics:`;
   /**
    * Build conversation prompt for AI
    */
-  private buildPrompt(context: ChatContext): string {
+  private async buildPrompt(context: ChatContext): Promise<string> {
     const recentHistory = context.recentMessages
-      .slice(-10) // Last 10 messages for context
+      .slice(-10)
       .map((msg) => `${msg.senderType}: ${msg.content}`)
       .join('\n');
+
+    // Get semantic context
+    const semanticContext = await this.getRelevantContext(
+      context.userMessage,
+      context.sessionId,
+    );
 
     return `You are a supportive mental health AI assistant. You provide empathetic, helpful responses while being careful not to provide medical advice. Always encourage users to seek professional help for serious concerns.
 
 Recent conversation:
 ${recentHistory}
-
+${semanticContext}
 User: ${context.userMessage}
 
 AI:`;

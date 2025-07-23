@@ -42,6 +42,17 @@ interface ContentModerationRequest {
   content: string;
 }
 
+interface SemanticSearchRequest {
+  query: string;
+  sessionId: string;
+  limit?: number;
+  threshold?: number;
+}
+
+interface EmbeddingRequest {
+  text: string;
+}
+
 @Controller('ai')
 @ApiTags('ai')
 export class AIController {
@@ -149,6 +160,69 @@ export class AIController {
       return {
         success: false,
         status: 'unhealthy',
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  @Post('semantic-search')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Search for semantically similar messages' })
+  @ApiBody({ type: Object, description: 'Search query and parameters' })
+  @ApiResponse({ status: 200, description: 'Semantic search completed' })
+  @ApiResponse({ status: 400, description: 'Invalid request data' })
+  async semanticSearch(@Body() request: SemanticSearchRequest) {
+    const results = await this.aiService.findSimilarMessages(
+      request.query,
+      request.sessionId,
+      request.limit || 5,
+      request.threshold || 0.7,
+    );
+
+    return {
+      success: true,
+      data: { results, count: results.length },
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  @Post('generate-embedding')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Generate embedding for text' })
+  @ApiBody({ type: Object, description: 'Text to generate embedding for' })
+  @ApiResponse({ status: 200, description: 'Embedding generated successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid request data' })
+  async generateEmbedding(@Body() request: EmbeddingRequest) {
+    const embedding = await this.aiService.generateEmbedding(request.text);
+
+    return {
+      success: true,
+      data: {
+        embedding,
+        dimensions: embedding?.length || 0,
+        model: 'nomic-embed-text',
+      },
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  @Get('embedding-stats/:sessionId')
+  @ApiOperation({ summary: 'Get embedding statistics for a session' })
+  @ApiResponse({ status: 200, description: 'Embedding statistics retrieved' })
+  async getEmbeddingStats(@Param('sessionId') sessionId: string) {
+    try {
+      // This would require adding a method to AIService to get stats
+      const stats = await this.aiService.getEmbeddingStats(sessionId);
+
+      return {
+        success: true,
+        data: stats,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      return {
+        success: false,
         error: error.message,
         timestamp: new Date().toISOString(),
       };

@@ -238,6 +238,65 @@ CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at);
 -- Vector search index for semantic search
 CREATE INDEX idx_chat_messages_embedding ON chat_messages USING ivfflat (embedding vector_cosine_ops);
 
+
+-- Create AI context table (if not exists) or modify existing
+CREATE TABLE IF NOT EXISTS ai_context (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID NOT NULL,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    context_data JSONB NOT NULL,
+    context_type VARCHAR(50) DEFAULT 'conversation',
+    embedding VECTOR(768), -- Nomic Embed produces 768-dimensional vectors
+    relevance_score DECIMAL(3,2) DEFAULT 1.0,
+    metadata JSONB,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Add indexes for AI context
+CREATE INDEX IF NOT EXISTS idx_ai_context_session_id ON ai_context(session_id);
+CREATE INDEX IF NOT EXISTS idx_ai_context_user_id ON ai_context(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_context_type ON ai_context(context_type);
+CREATE INDEX IF NOT EXISTS idx_ai_context_relevance ON ai_context(relevance_score);
+CREATE INDEX IF NOT EXISTS idx_ai_context_created_at ON ai_context(created_at);
+
+-- Vector similarity search index (using cosine distance)
+CREATE INDEX IF NOT EXISTS idx_ai_context_embedding_cosine 
+ON ai_context USING ivfflat (embedding vector_cosine_ops) 
+WITH (lists = 100);
+
+-- Vector similarity search index (using L2 distance)
+CREATE INDEX IF NOT EXISTS idx_ai_context_embedding_l2 
+ON ai_context USING ivfflat (embedding vector_l2_ops) 
+WITH (lists = 100);
+
+-- Add trigger for updated_at
+CREATE TRIGGER update_ai_context_updated_at 
+BEFORE UPDATE ON ai_context 
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Update chat_messages table to support larger embeddings
+ALTER TABLE chat_messages 
+ALTER COLUMN embedding TYPE VECTOR(768);
+
+-- Update vector index for chat_messages
+DROP INDEX IF EXISTS idx_chat_messages_embedding;
+CREATE INDEX idx_chat_messages_embedding_cosine 
+ON chat_messages USING ivfflat (embedding vector_cosine_ops) 
+WITH (lists = 100);
+
+-- Add configuration for embedding model
+INSERT INTO system_config (key, value, description, is_sensitive) VALUES
+('ollama_embedding_model', 'nomic-embed-text', 'Ollama embedding model name', false),
+('embedding_dimensions', '768', 'Embedding vector dimensions', false),
+('semantic_search_threshold', '0.7', 'Default semantic search similarity threshold', false),
+('max_semantic_results', '10', 'Maximum results for semantic search', false)
+ON CONFLICT (key) DO UPDATE SET 
+value = EXCLUDED.value,
+updated_at = CURRENT_TIMESTAMP;
+
+
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$

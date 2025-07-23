@@ -49,7 +49,7 @@ export class AIProcessor {
         `Generating embedding for ${messageType} message in session ${sessionId}`,
       );
 
-      // Generate embedding (placeholder - would use actual embedding model)
+      // Generate actual embedding using Nomic Embed
       const embedding = await this.generateEmbeddingVector(text);
 
       if (embedding) {
@@ -59,6 +59,8 @@ export class AIProcessor {
           messageType,
           messageId,
           embeddingGenerated: true,
+          embeddingModel: 'nomic-embed-text',
+          textLength: text.length,
         };
 
         const aiContext = this.aiContextRepository.create({
@@ -67,6 +69,11 @@ export class AIProcessor {
           embedding,
           contextType: 'embedding',
           relevanceScore: 0.8,
+          metadata: {
+            embeddingModel: 'nomic-embed-text',
+            textLength: text.length,
+            messageType,
+          },
         });
 
         await this.aiContextRepository.save(aiContext);
@@ -74,10 +81,94 @@ export class AIProcessor {
         this.logger.debug(
           `Embedding generated and stored for session ${sessionId}`,
         );
+      } else {
+        this.logger.warn(
+          `Failed to generate embedding for session ${sessionId}, falling back to text storage`,
+        );
+
+        // Store context without embedding for fallback text search
+        const contextData = {
+          text,
+          messageType,
+          messageId,
+          embeddingGenerated: false,
+          fallbackToTextSearch: true,
+        };
+
+        const aiContext = this.aiContextRepository.create({
+          sessionId,
+          contextData,
+          embedding: null,
+          contextType: 'text',
+          relevanceScore: 0.6,
+        });
+
+        await this.aiContextRepository.save(aiContext);
       }
     } catch (error) {
       this.logger.error(
         `Failed to generate embedding: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  @Process('batch-generate-embeddings')
+  async handleBatchEmbeddingGeneration(job: Job<{ sessionId: string }>) {
+    const { sessionId } = job.data;
+
+    try {
+      this.logger.debug(
+        `Starting batch embedding generation for session ${sessionId}`,
+      );
+
+      // Find contexts without embeddings
+      const contextsWithoutEmbeddings = await this.aiContextRepository.find({
+        where: {
+          sessionId,
+          embedding: undefined,
+          contextType: 'conversation',
+        },
+        take: 50, // Process in batches
+      });
+
+      for (const context of contextsWithoutEmbeddings) {
+        const text =
+          context.contextData?.userMessage || context.contextData?.text;
+        if (text) {
+          const embedding = await this.generateEmbeddingVector(text);
+          if (embedding) {
+            // Create new embedding context
+            const embeddingContext = this.aiContextRepository.create({
+              sessionId: context.sessionId,
+              contextData: {
+                text,
+                messageType: 'user',
+                originalContextId: context.id,
+                batchGenerated: true,
+              },
+              embedding,
+              contextType: 'embedding',
+              relevanceScore: 0.7,
+              metadata: {
+                embeddingModel: 'nomic-embed-text',
+                batchGenerated: true,
+                originalContextId: context.id,
+              },
+            });
+
+            await this.aiContextRepository.save(embeddingContext);
+          }
+        }
+      }
+
+      this.logger.debug(
+        `Batch embedding generation completed for session ${sessionId}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to batch generate embeddings: ${error.message}`,
         error.stack,
       );
       throw error;
@@ -235,26 +326,14 @@ export class AIProcessor {
   }
 
   /**
-   * Generate embedding vector (placeholder implementation)
+   * Generate embedding vector using Nomic Embed model
    */
   private async generateEmbeddingVector(
     text: string,
   ): Promise<number[] | null> {
     try {
-      // This is a placeholder - in production you'd use a real embedding model
-      // like sentence-transformers, OpenAI embeddings, or similar
-
-      // Simple hash-based pseudo-embedding for demonstration
-      const hash = this.simpleHash(text);
-      const embedding = new Array(384).fill(0).map((_, i) => {
-        return Math.sin((hash + i) * 0.1) * Math.cos((hash - i) * 0.05);
-      });
-
-      // Normalize the vector
-      const magnitude = Math.sqrt(
-        embedding.reduce((sum, val) => sum + val * val, 0),
-      );
-      return embedding.map((val) => val / magnitude);
+      // Use the AI service to generate actual embeddings
+      return await this.aiService.generateEmbedding(text);
     } catch (error) {
       this.logger.error(
         `Failed to generate embedding vector: ${error.message}`,
