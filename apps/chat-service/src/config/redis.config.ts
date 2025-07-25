@@ -35,9 +35,10 @@ export interface BullRedisConfig {
   port?: number;
   password?: string;
   db?: number;
-  maxRetriesPerRequest?: number;
+  // Remove these problematic options for Bull
+  // maxRetriesPerRequest?: number;
+  // enableReadyCheck?: boolean;
   retryDelayOnFailover?: number;
-  enableReadyCheck?: boolean;
   lazyConnect?: boolean;
 }
 
@@ -64,8 +65,11 @@ export default registerAs('redis', () => {
   } else {
     // Use individual connection parameters
     config.host = process.env.REDIS_HOST || 'localhost';
+    console.error(config.host);
     config.port = parseInt(process.env.REDIS_PORT || '6379', 10);
+    console.error(config.port);
     config.password = process.env.REDIS_PASSWORD;
+    console.error(config.password);
     config.db = parseInt(process.env.REDIS_DB || '0', 10);
   }
 
@@ -98,16 +102,15 @@ export default registerAs('redis', () => {
   return config;
 });
 
-// Bull queue specific Redis configuration
+// Bull queue specific Redis configuration - FIXED
 export const bullRedisConfig = registerAs('bullRedis', (): BullRedisConfig => {
   return {
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379', 10),
     password: process.env.REDIS_PASSWORD,
     db: parseInt(process.env.REDIS_BULL_DB || '1', 10), // Use different DB for Bull
-    maxRetriesPerRequest: 3,
+    // Removed enableReadyCheck and maxRetriesPerRequest as they cause issues with Bull
     retryDelayOnFailover: 100,
-    enableReadyCheck: true,
     lazyConnect: true,
   };
 });

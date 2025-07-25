@@ -13,7 +13,6 @@ import { ApiProperty } from '@nestjs/swagger';
 import { ChatSession } from './chat-session.entity';
 
 @Entity('chat_session_summaries')
-@Index(['sessionId'])
 export class ChatSessionSummary {
   @ApiProperty({ description: 'Unique summary identifier' })
   @PrimaryGeneratedColumn('uuid')
@@ -21,7 +20,6 @@ export class ChatSessionSummary {
 
   @ApiProperty({ description: 'Chat session ID' })
   @Column({ name: 'session_id', type: 'uuid' })
-  @Index()
   sessionId: string;
 
   @ApiProperty({ description: 'Summary text content' })

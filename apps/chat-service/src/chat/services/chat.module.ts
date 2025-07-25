@@ -44,6 +44,9 @@ import { AiContext } from '../../ai/entities/ai-context.entity';
     BullModule.registerQueue({
       name: 'ai-processing',
     }),
+    BullModule.registerQueue({
+      name: 'chat-processing',
+    }),
     HttpModule,
     // Add MailerModule configuration
     MailerModule.forRoot({

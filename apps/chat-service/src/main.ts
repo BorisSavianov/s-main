@@ -45,8 +45,6 @@ async function bootstrap() {
     .setDescription('AI-powered chat service for mental health support')
     .setVersion('1.0')
     .addBearerAuth()
-    .addTag('chat', 'Chat sessions and messaging')
-    .addTag('ai', 'AI assistant interactions')
     .addTag('search', 'Semantic search functionality')
     .build();
 

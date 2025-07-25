@@ -10,10 +10,6 @@ import {
 import { ApiProperty } from '@nestjs/swagger';
 
 @Entity('ai_context')
-@Index(['sessionId'])
-@Index(['userId'])
-@Index(['contextType'])
-@Index(['relevanceScore'])
 export class AiContext {
   @ApiProperty({ description: 'Unique context identifier' })
   @PrimaryGeneratedColumn('uuid')
@@ -21,12 +17,10 @@ export class AiContext {
 
   @ApiProperty({ description: 'Associated session ID' })
   @Column({ name: 'session_id', type: 'uuid' })
-  @Index()
   sessionId: string;
 
   @ApiProperty({ description: 'Associated user ID' })
   @Column({ name: 'user_id', type: 'uuid', nullable: true })
-  @Index()
   userId: string | null;
 
   @ApiProperty({ description: 'Context data for AI processing' })
@@ -46,7 +40,7 @@ export class AiContext {
   contextType: string;
 
   @ApiProperty({ description: 'Vector embedding for semantic search' })
-  @Column({ type: 'varchar', length: 1536, nullable: true })
+  @Column({ type: 'varchar', length: 768, nullable: true })
   embedding: number[] | null;
 
   @ApiProperty({ description: 'Relevance score for this context' })

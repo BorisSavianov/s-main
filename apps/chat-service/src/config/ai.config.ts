@@ -70,11 +70,11 @@ export default registerAs('ai', (): AIConfig => {
 
     ollama: {
       baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
-      defaultModel: process.env.OLLAMA_DEFAULT_MODEL || 'llama3.2:3b',
+      defaultModel: process.env.OLLAMA_DEFAULT_MODEL || 'llama3.1:8b',
       timeout: parseInt(process.env.OLLAMA_TIMEOUT || '30000', 10),
       maxRetries: parseInt(process.env.OLLAMA_MAX_RETRIES || '3', 10),
       models: {
-        chat: process.env.OLLAMA_CHAT_MODEL || 'llama3.2:3b',
+        chat: process.env.OLLAMA_CHAT_MODEL || 'llama3.1:8b',
         embedding: process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text',
         sentiment: process.env.OLLAMA_SENTIMENT_MODEL || 'llama3.2:1b',
         moderation: process.env.OLLAMA_MODERATION_MODEL || 'llama3.2:1b',
@@ -219,7 +219,7 @@ export const moderationConfig = registerAs('moderation', () => ({
 
 export const embeddingConfig = registerAs('embedding', () => ({
   model: process.env.EMBEDDING_MODEL || 'nomic-embed-text',
-  dimensions: parseInt(process.env.EMBEDDING_DIMENSIONS || '1536', 10),
+  dimensions: parseInt(process.env.EMBEDDING_DIMENSIONS || '768', 10),
   batchSize: parseInt(process.env.EMBEDDING_BATCH_SIZE || '100', 10),
   similarity: {
     threshold: parseFloat(process.env.EMBEDDING_SIMILARITY_THRESHOLD || '0.8'),

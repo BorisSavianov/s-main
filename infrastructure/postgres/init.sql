@@ -108,7 +108,7 @@ CREATE TABLE chat_messages (
     sentiment_score DECIMAL(3,2),
     is_flagged BOOLEAN DEFAULT false,
     flag_reason TEXT,
-    embedding VECTOR(1536), -- For semantic search
+    embedding VECTOR(768), -- For semantic search
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

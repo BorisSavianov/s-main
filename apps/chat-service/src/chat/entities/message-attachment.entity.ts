@@ -12,7 +12,6 @@ import { ApiProperty } from '@nestjs/swagger';
 import { ChatMessage } from './chat-message.entity';
 
 @Entity('message_attachments')
-@Index(['messageId'])
 export class MessageAttachment {
   @ApiProperty({ description: 'Unique attachment identifier' })
   @PrimaryGeneratedColumn('uuid')
@@ -20,7 +19,6 @@ export class MessageAttachment {
 
   @ApiProperty({ description: 'Message ID' })
   @Column({ name: 'message_id', type: 'uuid' })
-  @Index()
   messageId: string;
 
   @ApiProperty({ description: 'Original file name' })
@@ -35,9 +33,9 @@ export class MessageAttachment {
   @Column({ name: 'file_size', type: 'integer', nullable: true })
   fileSize: number | null;
 
-  // @ApiProperty({ description: 'MIME type of the file' })
-  // @Column({ name: 'file_type', length: 100, nullable: true })
-  // fileType: string | null;
+  @ApiProperty({ description: 'MIME type of the file' })
+  @Column({ name: 'file_type', type: 'text' })
+  fileType: string;
 
   @ApiProperty({ description: 'Whether file is an image' })
   @Column({ name: 'is_image', default: false })

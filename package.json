@@ -55,6 +55,7 @@
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
     "pg": "^8.11.0",
+    "pgvector": "^0.2.1",
     "redis": "^4.6.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",

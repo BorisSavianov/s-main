@@ -22,11 +22,6 @@ export enum SenderType {
 }
 
 @Entity('chat_messages')
-@Index(['sessionId'])
-@Index(['senderId'])
-@Index(['createdAt'])
-@Index(['senderType'])
-@Index(['isFlagged'])
 export class ChatMessage {
   @ApiProperty({ description: 'Unique message identifier' })
   @PrimaryGeneratedColumn('uuid')
@@ -34,17 +29,14 @@ export class ChatMessage {
 
   @ApiProperty({ description: 'Chat session ID' })
   @Column({ name: 'session_id', type: 'uuid' })
-  @Index()
   sessionId: string;
 
   @ApiProperty({ description: 'Sender user ID (null for AI messages)' })
   @Column({ name: 'sender_id', type: 'uuid', nullable: true })
-  @Index()
   senderId: string | null;
 
   @ApiProperty({ description: 'Type of message sender', enum: SenderType })
   @Column({ name: 'sender_type', type: 'varchar', length: 20 })
-  @Index()
   senderType: SenderType;
 
   @ApiProperty({ description: 'Message content' })
@@ -67,7 +59,6 @@ export class ChatMessage {
 
   @ApiProperty({ description: 'Whether message is flagged for review' })
   @Column({ name: 'is_flagged', default: false })
-  @Index()
   isFlagged: boolean;
 
   @ApiProperty({ description: 'Reason for flagging' })
@@ -75,12 +66,11 @@ export class ChatMessage {
   flagReason: string | null;
 
   @ApiProperty({ description: 'Vector embedding for semantic search' })
-  @Column({ type: 'varchar', length: 1536, nullable: true })
+  @Column({ type: 'varchar', length: 768, nullable: true })
   embedding: number[] | null;
 
   @ApiProperty({ description: 'Message creation timestamp' })
   @CreateDateColumn({ name: 'created_at' })
-  @Index()
   createdAt: Date;
 
   @ApiProperty({ description: 'Message last update timestamp' })

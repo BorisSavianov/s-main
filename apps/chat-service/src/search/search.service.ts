@@ -98,7 +98,7 @@ export class SearchService {
               flagReason: { type: 'text' },
               embedding: {
                 type: 'dense_vector',
-                dims: 1536,
+                dims: 768,
               },
               createdAt: { type: 'date' },
               updatedAt: { type: 'date' },

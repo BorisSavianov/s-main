@@ -3,6 +3,8 @@
 
 BEGIN;
 
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- Chat sessions table
 CREATE TABLE chat_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -30,7 +32,7 @@ CREATE TABLE chat_messages (
     sentiment_score DECIMAL(3,2),
     is_flagged BOOLEAN DEFAULT false,
     flag_reason TEXT,
-    embedding VECTOR(1536), -- For semantic search
+    embedding VECTOR(768), -- For semantic search
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -56,6 +58,7 @@ CREATE TABLE ai_context (
     context_data JSONB NOT NULL,
     personality_traits JSONB,
     conversation_history JSONB,
+    embedding VECTOR(768),
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(session_id, user_id)
@@ -68,7 +71,7 @@ CREATE TABLE message_attachments (
     file_name VARCHAR(255) NOT NULL,
     file_path TEXT NOT NULL,
     file_size INTEGER,
-    file_type VARCHAR(100),
+    file_type TEXT NOT NULL,
     is_image BOOLEAN DEFAULT false,
     is_document BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

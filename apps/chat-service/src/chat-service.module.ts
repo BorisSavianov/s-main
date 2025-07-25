@@ -14,6 +14,10 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 
+// Configuration
+import envConfig, { validate } from './config/env.config';
+import { AppConfigService } from './config/config.service';
+
 // Feature modules
 import { ChatModule } from './chat/services/chat.module';
 import { AiModule } from './ai/ai.module';
@@ -21,178 +25,120 @@ import { SearchModule } from './search/search.module';
 import { AuthModule } from '../../auth-service/src/auth/auth.module';
 import { WebSocketModule } from './websocket/websocket.module';
 
-// Configuration imports
-import databaseConfig from './config/database.config';
-import redisConfig, {
-  bullRedisConfig,
-  sessionRedisConfig,
-  cacheRedisConfig,
-} from './config/redis.config';
-import aiConfig from './config/ai.config';
+import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { LoggerOptions, LogLevel } from 'typeorm';
+import { AppConfigModule } from './config/config.module';
 
 @Module({
   imports: [
-    // Global configuration
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: [
-        `.env.${process.env.NODE_ENV}.local`,
-        `.env.${process.env.NODE_ENV}`,
-        '.env.local',
-        '.env',
-      ],
-      load: [
-        databaseConfig,
-        redisConfig,
-        bullRedisConfig,
-        sessionRedisConfig,
-        cacheRedisConfig,
-        aiConfig,
-      ],
-      cache: true,
-      expandVariables: true,
-    }),
+    AppConfigModule,
 
     // Database configuration
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => {
-        const config = configService.get('database');
+      imports: [AppConfigModule],
+      useFactory: async (
+        appConfigService: AppConfigService,
+      ): Promise<TypeOrmModuleOptions> => {
+        const config = appConfigService.databaseConfig;
 
-        // Additional runtime configuration
         return {
           ...config,
-          // Override or add specific settings
-          keepConnectionAlive: true,
-          // Add connection error handling
+          // cast logging to TypeORM's LoggerOptions
+          logging:
+            config.logging === 'all' ? 'all' : (config.logging as LogLevel[]),
           extra: {
             ...config.extra,
-            // Ensure proper connection handling
             max: config.extra?.max || 20,
             min: 0,
             acquire: 30000,
             idle: 10000,
+            idleTimeoutMillis: config.extra?.idleTimeoutMillis || 30000,
+            connectionTimeoutMillis:
+              config.extra?.connectionTimeoutMillis || 30000,
           },
         };
       },
-      inject: [ConfigService],
+      inject: [AppConfigService],
     }),
 
     // Main Redis connection
     RedisModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => {
-        const redisConfig = configService.get('redis');
+      imports: [AppConfigModule],
+      useFactory: (appConfigService: AppConfigService) => {
+        const redisConfig = appConfigService.redisConfig;
 
+        // Handle different Redis configuration formats
+        if ('url' in redisConfig) {
+          return {
+            type: 'single' as const,
+            url: redisConfig.url,
+          };
+        }
+
+        // For options-based configuration, ensure keepAlive is a number
         return {
-          type: 'single',
-          ...(redisConfig.url
-            ? { url: redisConfig.url }
-            : {
-                options: {
-                  host: redisConfig.host,
-                  port: redisConfig.port,
-                  password: redisConfig.password,
-                  db: redisConfig.db,
-                  keyPrefix: redisConfig.keyPrefix,
-                  retryDelayOnFailover: redisConfig.retryDelayOnFailover,
-                  enableReadyCheck: redisConfig.enableReadyCheck,
-                  maxRetriesPerRequest: redisConfig.maxRetriesPerRequest,
-                  lazyConnect: redisConfig.lazyConnect,
-                  connectTimeout: redisConfig.connectTimeout,
-                  commandTimeout: redisConfig.commandTimeout,
-                  family: redisConfig.family,
-                  keepAlive: redisConfig.keepAlive,
-                  ...(redisConfig.tls && { tls: redisConfig.tls }),
-                },
-              }),
+          type: 'single' as const,
+          options: {
+            ...redisConfig.options,
+            // Convert boolean keepAlive to number (1 for true, 0 for false)
+            keepAlive:
+              typeof redisConfig.options.keepAlive === 'boolean'
+                ? redisConfig.options.keepAlive
+                  ? 1
+                  : 0
+                : redisConfig.options.keepAlive,
+          },
         };
       },
-      inject: [ConfigService],
+      inject: [AppConfigService],
     }),
 
     // Bull Queue system
     BullModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => {
-        const bullConfig = configService.get('bullRedis');
-
-        return {
-          redis: {
-            host: bullConfig.host,
-            port: bullConfig.port,
-            password: bullConfig.password,
-            db: bullConfig.db,
-            maxRetriesPerRequest: bullConfig.maxRetriesPerRequest,
-            retryDelayOnFailover: bullConfig.retryDelayOnFailover,
-            enableReadyCheck: bullConfig.enableReadyCheck,
-            lazyConnect: bullConfig.lazyConnect,
-          },
-          defaultJobOptions: {
-            removeOnComplete: 10,
-            removeOnFail: 50,
-            attempts: 3,
-            backoff: {
-              type: 'exponential',
-              delay: 2000,
-            },
-          },
-          settings: {
-            stalledInterval: 30 * 1000,
-            maxStalledCount: 1,
-          },
-        };
+      imports: [AppConfigModule],
+      useFactory: (appConfigService: AppConfigService) => {
+        const bullConfig = appConfigService.bullRedisConfig;
+        return bullConfig;
       },
-      inject: [ConfigService],
+      inject: [AppConfigService],
     }),
 
     // Microservices communication
     ClientsModule.registerAsync([
       {
         name: 'AUTH_SERVICE',
-        imports: [ConfigModule],
-        useFactory: (configService: ConfigService): TcpClientOptions => ({
-          transport: Transport.TCP,
-          options: {
-            host:
-              configService.get<string>('AUTH_SERVICE_HOST') || 'auth-service',
-            port: configService.get<number>('AUTH_SERVICE_PORT') || 4000,
-            // Add retry configuration
-            // retryAttempts: 5,
-            // retryDelay: 3000,
-          },
-        }),
-        inject: [ConfigService],
+        imports: [AppConfigModule],
+        useFactory: (appConfigService: AppConfigService): TcpClientOptions => {
+          const authConfig = appConfigService.authServiceConfig;
+          return {
+            transport: Transport.TCP,
+            options: {
+              host: authConfig.host,
+              port: authConfig.port,
+            },
+          };
+        },
+        inject: [AppConfigService],
       },
       // Conditionally add RabbitMQ service only if configured
       ...(process.env.RABBITMQ_URL
         ? [
             {
               name: 'RABBITMQ_SERVICE',
-              imports: [ConfigModule],
-              useFactory: (configService: ConfigService): RmqOptions => {
-                const rabbitmqUrl = configService.get<string>('RABBITMQ_URL');
+              imports: [AppConfigModule],
+              useFactory: (appConfigService: AppConfigService): RmqOptions => {
+                const rabbitmqConfig = appConfigService.rabbitmqConfig;
+
+                if (!rabbitmqConfig) {
+                  throw new Error('RabbitMQ configuration is missing');
+                }
 
                 return {
                   transport: Transport.RMQ,
-                  options: {
-                    urls: [rabbitmqUrl!], // We know it exists due to the condition above
-                    queue: 'chat_queue',
-                    queueOptions: {
-                      durable: true,
-                      arguments: {
-                        'x-message-ttl': 60000, // 1 minute TTL
-                      },
-                    },
-                    socketOptions: {
-                      keepAlive: true,
-                      heartbeatIntervalInSeconds: 30,
-                      reconnectTimeInSeconds: 1,
-                    },
-                  },
+                  options: rabbitmqConfig,
                 };
               },
-              inject: [ConfigService],
+              inject: [AppConfigService],
             },
           ]
         : []),
@@ -200,27 +146,11 @@ import aiConfig from './config/ai.config';
 
     // Rate limiting with multiple strategies
     ThrottlerModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        throttlers: [
-          {
-            name: 'short',
-            ttl: 1000, // 1 second
-            limit: configService.get<number>('THROTTLE_SHORT_LIMIT') || 10,
-          },
-          {
-            name: 'medium',
-            ttl: 10000, // 10 seconds
-            limit: configService.get<number>('THROTTLE_MEDIUM_LIMIT') || 50,
-          },
-          {
-            name: 'long',
-            ttl: 60000, // 1 minute
-            limit: configService.get<number>('THROTTLE_LONG_LIMIT') || 200,
-          },
-        ],
-      }),
-      inject: [ConfigService],
+      imports: [AppConfigModule],
+      useFactory: (appConfigService: AppConfigService) => {
+        return appConfigService.throttleConfig;
+      },
+      inject: [AppConfigService],
     }),
 
     // Scheduled tasks
@@ -234,6 +164,8 @@ import aiConfig from './config/ai.config';
     WebSocketModule,
   ],
   providers: [
+    // Register AppConfigService as a provider
+    AppConfigService,
     // Global throttler guard
     {
       provide: APP_GUARD,
@@ -242,12 +174,19 @@ import aiConfig from './config/ai.config';
   ],
 })
 export class AppModule {
-  constructor(private configService: ConfigService) {
+  constructor(private appConfigService: AppConfigService) {
     // Log important configuration on startup (non-sensitive info only)
     console.log('Chat Service Configuration:');
-    console.log(`- Environment: ${this.configService.get('NODE_ENV')}`);
-    console.log(`- AI Provider: ${this.configService.get('ai.provider')}`);
-    console.log(`- Database: ${this.configService.get('database.type')}`);
-    console.log(`- Redis Host: ${this.configService.get('redis.host')}`);
+    console.log(`- Environment: ${this.appConfigService.nodeEnv}`);
+    console.log(`- Port: ${this.appConfigService.port}`);
+    console.log(`- AI Provider: ${this.appConfigService.aiConfig.provider}`);
+    console.log(`- Database: ${this.appConfigService.databaseConfig.type}`);
+
+    const redisConfig = this.appConfigService.redisConfig;
+    if ('options' in redisConfig) {
+      console.log(`- Redis Host: ${redisConfig.options.host}`);
+    } else {
+      console.log(`- Redis: Connected via URL`);
+    }
   }
 }

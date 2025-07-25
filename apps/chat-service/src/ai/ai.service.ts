@@ -32,7 +32,6 @@ interface OllamaRequest {
   options?: {
     temperature?: number;
     top_p?: number;
-    max_tokens?: number;
   };
 }
 
@@ -79,7 +78,11 @@ export class AIService {
     );
     this.defaultModel = this.configService.get<string>(
       'OLLAMA_DEFAULT_MODEL',
-      'llama3.2:3b',
+      'llama3.1:8b',
+    );
+    this.embeddingModel = this.configService.get<string>(
+      'OLLAMA_EMBEDDING_MODEL',
+      'nomic-embed-text',
     );
   }
 
@@ -88,15 +91,17 @@ export class AIService {
    */
   async generateResponse(context: ChatContext): Promise<AIResponse> {
     try {
+      this.logger.log('1');
       await this.storeContext(context);
-
+      this.logger.log('2');
       const prompt = await this.buildPrompt(context);
+      this.logger.log('3');
       const ollamaResponse = await this.callOllama(prompt);
-
+      this.logger.log('4');
       const sentiment = await this.analyzeSentiment(context.userMessage);
-
+      this.logger.log('5');
       await this.queueBackgroundTasks(context, ollamaResponse);
-
+      this.logger.log('6');
       return {
         content: ollamaResponse.response.trim(),
         sentiment,
@@ -463,7 +468,6 @@ Sentiment score:`;
 
       const response = await this.callOllama(prompt, {
         temperature: 0.1, // Lower temperature for more consistent results
-        max_tokens: 10,
       });
 
       const scoreMatch = response.response.match(/-?\d+\.?\d*/);
@@ -494,7 +498,6 @@ Overall sentiment score:`;
 
       const response = await this.callOllama(prompt, {
         temperature: 0.1,
-        max_tokens: 10,
       });
 
       const scoreMatch = response.response.match(/-?\d+\.?\d*/);
@@ -646,7 +649,6 @@ Analysis:`;
 
       const response = await this.callOllama(prompt, {
         temperature: 0.1,
-        max_tokens: 50,
       });
 
       const result = response.response.trim().toUpperCase();
@@ -693,7 +695,6 @@ Recommendations:`;
 
       const response = await this.callOllama(prompt, {
         temperature: 0.3,
-        max_tokens: 200,
       });
 
       return response.response
@@ -727,7 +728,6 @@ Topics:`;
 
       const response = await this.callOllama(prompt, {
         temperature: 0.2,
-        max_tokens: 50,
       });
 
       return response.response
@@ -797,7 +797,6 @@ Summary:`;
       options: {
         temperature: options.temperature ?? 0.7,
         top_p: options.top_p ?? 0.9,
-        max_tokens: options.max_tokens ?? 256,
         ...options,
       },
     };

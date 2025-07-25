@@ -174,14 +174,13 @@ services:
       - MAIL_HOST=smtp.gmail.com
       - MAIL_PORT=587
       - MAIL_SECURE=false
-      - MAIL_USER=bsavyanov@gmail.com
-      - MAIL_PASS=mjuw vofq dljx cyud
+      - SMTP_USER=bsavyanov@gmail.com
+      - SMTP_PASS=mjuw vofq dljx cyud
       - MAIL_FROM_NAME=SerenitySpace
       - MAIL_FROM_ADDRESS=bsavyanov@gmail.com
-      - REDIS_URL=redis://localhost:6379
       - REDIS_HOST=localhost
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=
+      - REDIS_PASSWORD=mentalhealth2024
       - REDIS_DB=0
       - REDIS_KEY_PREFIX=chat_service
       - REDIS_BULL_DB=1
@@ -196,14 +195,14 @@ services:
       - REDIS_SENTINEL_ENABLED=false
       - REDIS_SENTINEL_MASTER_NAME=mymaster
       - AI_PROVIDER=ollama
-      - OLLAMA_BASE_URL=http://localhost:11434
-      - OLLAMA_DEFAULT_MODEL=llama3.2:3b
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_DEFAULT_MODEL=llama3.1:8b
       - OLLAMA_TIMEOUT=30000
       - OLLAMA_MAX_RETRIES=3
-      - OLLAMA_CHAT_MODEL=llama3.2:3b
+      - OLLAMA_CHAT_MODEL=llama3.1:8b
       - OLLAMA_EMBEDDING_MODEL=nomic-embed-text
-      - OLLAMA_SENTIMENT_MODEL=llama3.2:1b
-      - OLLAMA_MODERATION_MODEL=llama3.2:1b
+      - OLLAMA_SENTIMENT_MODEL=llama3.1:8b
+      - OLLAMA_MODERATION_MODEL=llama3.1:8b
       - OLLAMA_TEMPERATURE=0.7
       - OLLAMA_TOP_P=0.9
       - OLLAMA_MAX_TOKENS=256
@@ -254,6 +253,36 @@ services:
       - EMBEDDING_SIMILARITY_METRIC=cosine
       - EMBEDDING_STORAGE_ENABLED=false
       - EMBEDDING_STORAGE_PROVIDER=postgres
+      - EMBEDDING_DIMENSIONS=768
+      - SEMANTIC_SEARCH_THRESHOLD=0.7
+      - MAX_SEMANTIC_RESULTS=10
+      - ENABLE_VECTOR_SEARCH=true
+      - VECTOR_INDEX_TYPE=ivfflat
+      - VECTOR_INDEX_LISTS=100
+      - DB_HOST=localhost
+      - DB_PORT=5432
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=mentalhealth2024
+      - DB_NAME=mentalhealth
+      - DB_POOL_MAX=20
+      - DB_IDLE_TIMEOUT=30000
+      - DB_CONNECTION_TIMEOUT=2000
+      - DB_QUERY_TIMEOUT=60000
+      - DB_STATEMENT_TIMEOUT=60000
+      - DB_SSL_ENABLED=false
+      - DB_SSL_REJECT_UNAUTHORIZED=true
+      - DB_CA_CERT=
+      - DB_CLIENT_CERT=
+      - DB_CLIENT_KEY=
+      - DB_MIGRATIONS_PATH=src/migrations/**/*{.ts,.js}
+      - DB_MIGRATIONS_TABLE=migrations
+      - DB_RUN_MIGRATIONS=false
+      - DISABLE_SYNC=true
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - JWT_EXPIRES_IN=24h
+      - GOOGLE_CLIENT_ID=265701614421-9qahv7sm5ib3fqe5m904g8ql2tdf5d9g.apps.googleusercontent.com
+      - GOOGLE_CLIENT_SECRET=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
+      - GOOGLE_CALLBACK_URL=http://localhost:4000/auth/google/callback
 
     ports:
       - '4002:4002'
@@ -264,6 +293,9 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4002/health']
       interval: 30s
@@ -491,7 +523,7 @@ services:
 
   # Log Management
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.0.4
     container_name: serenity_space_elasticsearch
     environment:
       - discovery.type=single-node
@@ -512,7 +544,7 @@ services:
       - serenity_space_network
 
   kibana:
-    image: docker.elastic.co/kibana/kibana:8.11.0
+    image: docker.elastic.co/kibana/kibana:9.0.4
     container_name: serenity_space_kibana
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200

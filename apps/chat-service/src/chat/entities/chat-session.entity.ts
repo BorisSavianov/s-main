@@ -13,10 +13,6 @@ import { ChatMessage } from './chat-message.entity';
 import { ChatSessionSummary } from './chat-session-summary.entity';
 
 @Entity('chat_sessions')
-@Index(['userId'])
-@Index(['counselorId'])
-@Index(['sessionToken'])
-@Index(['isActive'])
 export class ChatSession {
   @ApiProperty({ description: 'Unique session identifier' })
   @PrimaryGeneratedColumn('uuid')
@@ -24,17 +20,14 @@ export class ChatSession {
 
   @ApiProperty({ description: 'User ID (null for anonymous sessions)' })
   @Column({ name: 'user_id', type: 'uuid', nullable: true })
-  @Index()
   userId: string | null;
 
   @ApiProperty({ description: 'Counselor ID (for human-assisted sessions)' })
   @Column({ name: 'counselor_id', type: 'uuid', nullable: true })
-  @Index()
   counselorId: string | null;
 
   @ApiProperty({ description: 'Unique session token for anonymous sessions' })
   @Column({ name: 'session_token', unique: true })
-  @Index()
   sessionToken: string;
 
   @ApiProperty({ description: 'Whether this is an anonymous session' })
@@ -43,7 +36,6 @@ export class ChatSession {
 
   @ApiProperty({ description: 'Whether the session is currently active' })
   @Column({ name: 'is_active', default: true })
-  @Index()
   isActive: boolean;
 
   @ApiProperty({ description: 'Session start timestamp' })

@@ -38,7 +38,7 @@ import { GetUser } from '../../../../auth-service/src/auth/decorators/get-user.d
 import { UserRole } from '../../../../auth-service/src/database/entities/user.entity';
 
 @ApiTags('Chat')
-@Controller('api/v1/chat')
+@Controller('/chat')
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
