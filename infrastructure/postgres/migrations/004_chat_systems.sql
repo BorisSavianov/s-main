@@ -67,9 +67,7 @@ CREATE TABLE ai_context (
     UNIQUE(session_id, user_id)
 );
 
--- This assumes your embeddings are 768-dimensional
-ALTER TABLE ai_context
-ALTER COLUMN embedding TYPE vector(768) USING embedding::vector;
+
 
 
 -- Message attachments table
@@ -165,5 +163,9 @@ CHECK (validate_embedding_format(embedding));
 
 -- Record this migration
 INSERT INTO migrations (migration_name) VALUES ('004_chat_system');
+
+-- This assumes your embeddings are 768-dimensional
+ALTER TABLE ai_context
+ALTER COLUMN embedding TYPE vector(768) USING embedding::vector;
 
 COMMIT;

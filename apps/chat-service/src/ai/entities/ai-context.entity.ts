@@ -42,7 +42,7 @@ export class AiContext {
 
   @ApiProperty({ description: 'Vector embedding for semantic search' })
   @Column({
-    type: 'text', // Use text type for TypeORM compatibility
+    type: 'vector' as any, // Use text type for TypeORM compatibility
     nullable: true,
     transformer: vectorTransformer,
   })
