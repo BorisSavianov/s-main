@@ -8,6 +8,7 @@ import {
   Index,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
+import { vectorTransformer } from '../../common/transformers/vector.transformer';
 
 @Entity('ai_context')
 export class AiContext {
@@ -40,7 +41,11 @@ export class AiContext {
   contextType: string;
 
   @ApiProperty({ description: 'Vector embedding for semantic search' })
-  @Column({ type: 'varchar', length: 768, nullable: true })
+  @Column({
+    type: 'text', // Use text type for TypeORM compatibility
+    nullable: true,
+    transformer: vectorTransformer,
+  })
   embedding: number[] | null;
 
   @ApiProperty({ description: 'Relevance score for this context' })

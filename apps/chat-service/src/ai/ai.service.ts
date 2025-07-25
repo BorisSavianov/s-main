@@ -552,6 +552,59 @@ Overall sentiment score:`;
   /**
    * Find semantically similar messages using embeddings
    */
+  async findSimilarMessagesAlternative(
+    query: string,
+    sessionId: string,
+    limit: number = 5,
+    threshold: number = 0.7,
+  ): Promise<Array<{ content: string; similarity: number; createdAt: Date }>> {
+    try {
+      const queryEmbedding = await this.generateEmbedding(query);
+      if (!queryEmbedding) {
+        return [];
+      }
+
+      // Convert embedding to PostgreSQL vector format
+      const vectorString = `[${queryEmbedding.join(',')}]`;
+
+      // Use raw SQL query to properly handle vector operations
+      const similarContexts = await this.aiContextRepository.query(
+        `
+      SELECT 
+        context_data,
+        created_at,
+        (embedding <-> $1::vector) as distance
+      FROM ai_context
+      WHERE session_id = $2
+        AND context_type = $3
+        AND embedding IS NOT NULL
+        AND (embedding <-> $1::vector) < $4
+      ORDER BY distance ASC
+      LIMIT $5
+    `,
+        [
+          vectorString,
+          sessionId,
+          'embedding',
+          1 - threshold, // Convert similarity to distance
+          limit,
+        ],
+      );
+
+      return similarContexts.map((ctx) => ({
+        content: ctx.context_data?.text || '',
+        similarity: 1 - ctx.distance, // Convert distance back to similarity
+        createdAt: ctx.created_at,
+      }));
+    } catch (error) {
+      this.logger.error(`Failed to find similar messages: ${error.message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Alternative method using TypeORM query builder with proper casting
+   */
   async findSimilarMessages(
     query: string,
     sessionId: string,
@@ -570,29 +623,49 @@ Overall sentiment score:`;
       const similarContexts = await this.aiContextRepository
         .createQueryBuilder('context')
         .select([
-          'context.contextData',
-          'context.createdAt',
-          `(context.embedding <-> '${vectorString}'::vector) as similarity`,
+          'context.contextData as context_data',
+          'context.createdAt as created_at',
         ])
+        .addSelect(`(context.embedding <-> :vectorString::vector)`, 'distance')
         .where('context.sessionId = :sessionId', { sessionId })
-        .andWhere('context.contextType = :contextType', {
-          contextType: 'embedding',
+        .andWhere('context.contextType = ANY(:contextTypes)', {
+          contextTypes: ['conversation', 'text', 'embedding'],
         })
         .andWhere('context.embedding IS NOT NULL')
         .andWhere(
-          `(context.embedding <-> '${vectorString}'::vector) < :threshold`,
+          `(context.embedding <-> :vectorString::vector) < :threshold`,
           {
-            threshold: 1 - threshold, // Convert similarity to distance
+            vectorString,
+            threshold: 1 - threshold,
           },
         )
-        .orderBy('similarity', 'ASC')
+        .orderBy('distance', 'ASC')
         .limit(limit)
         .getRawMany();
 
+      // const allContexts = await this.aiContextRepository
+      //   .createQueryBuilder('context')
+      //   .select([
+      //     'context.contextData as context_data',
+      //     'context.createdAt as created_at',
+      //   ])
+      //   .addSelect(
+      //     `(context.embedding::vector <-> ${vectorString}::vector)`,
+      //     'distance',
+      //   )
+      //   .where('context.sessionId = :sessionId', { sessionId })
+      //   .orderBy('distance', 'ASC')
+      //   .limit(limit)
+      //   .getRawMany();
+
+      // console.log('allContexts: ' + JSON.stringify(allContexts, null, 2));
+
+      console.log('SimilarContexts: ' + similarContexts);
+
       return similarContexts.map((ctx) => ({
-        content: ctx.context_contextData?.text || '',
-        similarity: 1 - ctx.similarity, // Convert distance back to similarity
-        createdAt: ctx.context_createdAt,
+        content: ctx.context_data?.text || '',
+        similarity: 1 - ctx.distance, // Convert distance back to similarity
+        createdAt: ctx.created_at,
       }));
     } catch (error) {
       this.logger.error(`Failed to find similar messages: ${error.message}`);
@@ -620,6 +693,8 @@ Overall sentiment score:`;
         (msg, index) =>
           `[Context ${index + 1} - Similarity: ${msg.similarity.toFixed(2)}]: ${msg.content}`,
       );
+
+      contextParts.forEach((el) => console.log('context part: ' + el));
 
       return `\nRelevant conversation context:\n${contextParts.join('\n')}\n`;
     } catch (error) {
@@ -756,6 +831,8 @@ Topics:`;
       context.sessionId,
     );
 
+    console.log(semanticContext);
+
     return `You are a supportive mental health AI assistant. You provide empathetic, helpful responses while being careful not to provide medical advice. Always encourage users to seek professional help for serious concerns.
 
 Recent conversation:
@@ -872,9 +949,13 @@ Summary:`;
         sessionId: context.sessionId,
         userId: null, // Would be populated if we had user info
         contextData,
+        embedding: await this.generateEmbedding(context.userMessage),
         contextType: 'conversation',
         relevanceScore: 1.0,
       });
+
+      console.log('aiContext: ' + JSON.stringify(contextData.recentMessages));
+      console.log('aiContext: ' + JSON.stringify(contextData.userMessage));
 
       await this.aiContextRepository.save(aiContext);
     } catch (error) {

@@ -5,6 +5,9 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
+DROP TABLE IF EXISTS ai_context CASCADE;
+
+
 -- Chat sessions table
 CREATE TABLE chat_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -64,6 +67,11 @@ CREATE TABLE ai_context (
     UNIQUE(session_id, user_id)
 );
 
+-- This assumes your embeddings are 768-dimensional
+ALTER TABLE ai_context
+ALTER COLUMN embedding TYPE vector(768) USING embedding::vector;
+
+
 -- Message attachments table
 CREATE TABLE message_attachments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -114,6 +122,46 @@ BEGIN
         AND ended_at IS NULL;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Create a functional index for vector operations
+-- This allows efficient vector similarity searches even with text storage
+CREATE INDEX idx_ai_context_embedding_vector 
+ON ai_context USING ivfflat (embedding::vector(768) vector_cosine_ops)
+WHERE embedding IS NOT NULL;
+
+-- Create trigger for updated_at
+CREATE TRIGGER update_ai_context_updated_at 
+    BEFORE UPDATE ON ai_context 
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Helper function to validate vector format
+CREATE OR REPLACE FUNCTION validate_embedding_format(embedding_text TEXT)
+RETURNS BOOLEAN AS $$
+BEGIN
+    -- Check if it's a valid vector format [1,2,3,...]
+    IF embedding_text IS NULL THEN
+        RETURN TRUE;
+    END IF;
+    
+    IF NOT (embedding_text ~ '^\[[\d.,\s-]+\]$') THEN
+        RETURN FALSE;
+    END IF;
+    
+    -- Try to cast to vector to validate
+    BEGIN
+        PERFORM embedding_text::vector;
+        RETURN TRUE;
+    EXCEPTION WHEN OTHERS THEN
+        RETURN FALSE;
+    END;
+END;
+$$ LANGUAGE plpgsql;
+
+
+ALTER TABLE ai_context 
+ADD CONSTRAINT check_embedding_format 
+CHECK (validate_embedding_format(embedding));
 
 -- Record this migration
 INSERT INTO migrations (migration_name) VALUES ('004_chat_system');

@@ -6,6 +6,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AiContext } from '../entities/ai-context.entity';
 import { AIService } from '../ai.service';
+import { VectorUtils } from '../../common/transformers/vector.transformer';
 
 interface EmbeddingJob {
   text: string;
@@ -52,7 +53,7 @@ export class AIProcessor {
       // Generate actual embedding using Nomic Embed
       const embedding = await this.generateEmbeddingVector(text);
 
-      if (embedding) {
+      if (embedding && VectorUtils.validateVector(embedding)) {
         // Store embedding in context
         const contextData = {
           text,
@@ -66,24 +67,25 @@ export class AIProcessor {
         const aiContext = this.aiContextRepository.create({
           sessionId,
           contextData,
-          embedding,
+          embedding, // TypeORM will handle conversion with transformer
           contextType: 'embedding',
           relevanceScore: 0.8,
           metadata: {
             embeddingModel: 'nomic-embed-text',
             textLength: text.length,
             messageType,
+            vectorDimensions: embedding.length,
           },
         });
 
         await this.aiContextRepository.save(aiContext);
 
         this.logger.debug(
-          `Embedding generated and stored for session ${sessionId}`,
+          `Embedding generated and stored for session ${sessionId} (dimensions: ${embedding.length})`,
         );
       } else {
         this.logger.warn(
-          `Failed to generate embedding for session ${sessionId}, falling back to text storage`,
+          `Failed to generate valid embedding for session ${sessionId}, falling back to text storage`,
         );
 
         // Store context without embedding for fallback text search
@@ -93,6 +95,7 @@ export class AIProcessor {
           messageId,
           embeddingGenerated: false,
           fallbackToTextSearch: true,
+          reason: 'invalid_embedding_format',
         };
 
         const aiContext = this.aiContextRepository.create({
@@ -133,12 +136,15 @@ export class AIProcessor {
         take: 50, // Process in batches
       });
 
+      let processed = 0;
+      let skipped = 0;
+
       for (const context of contextsWithoutEmbeddings) {
         const text =
           context.contextData?.userMessage || context.contextData?.text;
-        if (text) {
+        if (text && typeof text === 'string' && text.trim().length > 0) {
           const embedding = await this.generateEmbeddingVector(text);
-          if (embedding) {
+          if (embedding && VectorUtils.validateVector(embedding)) {
             // Create new embedding context
             const embeddingContext = this.aiContextRepository.create({
               sessionId: context.sessionId,
@@ -147,6 +153,7 @@ export class AIProcessor {
                 messageType: 'user',
                 originalContextId: context.id,
                 batchGenerated: true,
+                textLength: text.length,
               },
               embedding,
               contextType: 'embedding',
@@ -155,16 +162,28 @@ export class AIProcessor {
                 embeddingModel: 'nomic-embed-text',
                 batchGenerated: true,
                 originalContextId: context.id,
+                vectorDimensions: embedding.length,
               },
             });
 
             await this.aiContextRepository.save(embeddingContext);
+            processed++;
+          } else {
+            skipped++;
+            this.logger.warn(
+              `Skipped invalid embedding for context ${context.id}`,
+            );
           }
+        } else {
+          skipped++;
+          this.logger.warn(
+            `Skipped context ${context.id} - no valid text found`,
+          );
         }
       }
 
       this.logger.debug(
-        `Batch embedding generation completed for session ${sessionId}`,
+        `Batch embedding generation completed for session ${sessionId}. Processed: ${processed}, Skipped: ${skipped}`,
       );
     } catch (error) {
       this.logger.error(
@@ -326,14 +345,27 @@ export class AIProcessor {
   }
 
   /**
-   * Generate embedding vector using Nomic Embed model
+   * Generate embedding vector using Nomic Embed model with validation
    */
   private async generateEmbeddingVector(
     text: string,
   ): Promise<number[] | null> {
     try {
+      if (!text || typeof text !== 'string' || text.trim().length === 0) {
+        this.logger.warn('Invalid text provided for embedding generation');
+        return null;
+      }
+
       // Use the AI service to generate actual embeddings
-      return await this.aiService.generateEmbedding(text);
+      const embedding = await this.aiService.generateEmbedding(text);
+
+      if (!embedding || !VectorUtils.validateVector(embedding)) {
+        this.logger.warn('Generated embedding is invalid or null');
+        return null;
+      }
+
+      // Normalize the embedding vector
+      return VectorUtils.normalize(embedding);
     } catch (error) {
       this.logger.error(
         `Failed to generate embedding vector: ${error.message}`,
