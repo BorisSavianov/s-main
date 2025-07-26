@@ -7,8 +7,9 @@ import {
   UpdateDateColumn,
   Index,
 } from 'typeorm';
+
 import { ApiProperty } from '@nestjs/swagger';
-import { vectorTransformer } from '../../common/transformers/vector.transformer';
+import { vectorToSql, vectorType } from 'pgvector/utils';
 
 @Entity('ai_context')
 export class AiContext {
@@ -40,14 +41,14 @@ export class AiContext {
   @Index()
   contextType: string;
 
-  @ApiProperty({ description: 'Vector embedding for semantic search' })
-  @Column({
-    type: 'vector' as any, // Use text type for TypeORM compatibility
-    nullable: true,
-    transformer: vectorTransformer,
+  @ApiProperty({
+    description: 'Vector embedding for semantic search stored as JSON array',
   })
-  embedding: number[] | null;
-
+  // @Column({
+  //   type: 'vector' as any,
+  //   nullable: true,
+  // })
+  // embedding: number[] | null;
   @ApiProperty({ description: 'Relevance score for this context' })
   @Column({
     name: 'relevance_score',

@@ -50,11 +50,11 @@ export class AIProcessor {
         `Generating embedding for ${messageType} message in session ${sessionId}`,
       );
 
-      // Generate actual embedding using Nomic Embed
-      const embedding = await this.generateEmbeddingVector(text);
+      // Generate actual embedding using AIService (which handles Nomic Embed)
+      const embedding = await this.aiService.generateEmbedding(text);
 
       if (embedding && VectorUtils.validateVector(embedding)) {
-        // Store embedding in context
+        // Store embedding using raw SQL to handle vector type properly
         const contextData = {
           text,
           messageType,
@@ -64,21 +64,38 @@ export class AIProcessor {
           textLength: text.length,
         };
 
-        const aiContext = this.aiContextRepository.create({
-          sessionId,
-          contextData,
-          embedding, // TypeORM will handle conversion with transformer
-          contextType: 'embedding',
-          relevanceScore: 0.8,
-          metadata: {
-            embeddingModel: 'nomic-embed-text',
-            textLength: text.length,
-            messageType,
-            vectorDimensions: embedding.length,
-          },
-        });
+        const metadata = {
+          embeddingModel: 'nomic-embed-text',
+          textLength: text.length,
+          messageType,
+          vectorDimensions: embedding.length,
+        };
 
-        await this.aiContextRepository.save(aiContext);
+        // Use raw SQL query to insert with vector
+        const vectorString = `[${embedding.join(',')}]`;
+
+        await this.aiContextRepository.query(
+          `
+          INSERT INTO ai_context (
+            session_id, 
+            context_data, 
+            embedding, 
+            context_type, 
+            relevance_score, 
+            metadata,
+            created_at,
+            updated_at
+          ) VALUES ($1, $2, $3::vector, $4, $5, $6, NOW(), NOW())
+          `,
+          [
+            sessionId,
+            JSON.stringify(contextData),
+            vectorString,
+            'embedding',
+            0.8,
+            JSON.stringify(metadata),
+          ],
+        );
 
         this.logger.debug(
           `Embedding generated and stored for session ${sessionId} (dimensions: ${embedding.length})`,
@@ -88,7 +105,7 @@ export class AIProcessor {
           `Failed to generate valid embedding for session ${sessionId}, falling back to text storage`,
         );
 
-        // Store context without embedding for fallback text search
+        // Store context without embedding for fallback text search using TypeORM
         const contextData = {
           text,
           messageType,
@@ -101,7 +118,6 @@ export class AIProcessor {
         const aiContext = this.aiContextRepository.create({
           sessionId,
           contextData,
-          embedding: null,
           contextType: 'text',
           relevanceScore: 0.6,
         });
@@ -126,47 +142,75 @@ export class AIProcessor {
         `Starting batch embedding generation for session ${sessionId}`,
       );
 
-      // Find contexts without embeddings
-      const contextsWithoutEmbeddings = await this.aiContextRepository.find({
-        where: {
-          sessionId,
-          embedding: undefined,
-          contextType: 'conversation',
-        },
-        take: 50, // Process in batches
-      });
+      // Find contexts without embeddings using raw SQL
+      const contextsWithoutEmbeddings = await this.aiContextRepository.query(
+        `
+        SELECT id, session_id, context_data, created_at
+        FROM ai_context
+        WHERE session_id = $1
+          AND embedding IS NULL
+          AND context_type = $2
+        LIMIT 50
+        `,
+        [sessionId, 'conversation'],
+      );
 
       let processed = 0;
       let skipped = 0;
 
       for (const context of contextsWithoutEmbeddings) {
-        const text =
-          context.contextData?.userMessage || context.contextData?.text;
-        if (text && typeof text === 'string' && text.trim().length > 0) {
-          const embedding = await this.generateEmbeddingVector(text);
-          if (embedding && VectorUtils.validateVector(embedding)) {
-            // Create new embedding context
-            const embeddingContext = this.aiContextRepository.create({
-              sessionId: context.sessionId,
-              contextData: {
-                text,
-                messageType: 'user',
-                originalContextId: context.id,
-                batchGenerated: true,
-                textLength: text.length,
-              },
-              embedding,
-              contextType: 'embedding',
-              relevanceScore: 0.7,
-              metadata: {
-                embeddingModel: 'nomic-embed-text',
-                batchGenerated: true,
-                originalContextId: context.id,
-                vectorDimensions: embedding.length,
-              },
-            });
+        const contextData =
+          typeof context.context_data === 'string'
+            ? JSON.parse(context.context_data)
+            : context.context_data;
 
-            await this.aiContextRepository.save(embeddingContext);
+        const text = contextData?.userMessage || contextData?.text;
+
+        if (text && typeof text === 'string' && text.trim().length > 0) {
+          const embedding = await this.aiService.generateEmbedding(text);
+
+          if (embedding && VectorUtils.validateVector(embedding)) {
+            const embeddingContextData = {
+              text,
+              messageType: 'user',
+              originalContextId: context.id,
+              batchGenerated: true,
+              textLength: text.length,
+            };
+
+            const metadata = {
+              embeddingModel: 'nomic-embed-text',
+              batchGenerated: true,
+              originalContextId: context.id,
+              vectorDimensions: embedding.length,
+            };
+
+            // Insert using raw SQL with vector
+            const vectorString = `[${embedding.join(',')}]`;
+
+            await this.aiContextRepository.query(
+              `
+              INSERT INTO ai_context (
+                session_id, 
+                context_data, 
+                embedding, 
+                context_type, 
+                relevance_score, 
+                metadata,
+                created_at,
+                updated_at
+              ) VALUES ($1, $2, $3::vector, $4, $5, $6, NOW(), NOW())
+              `,
+              [
+                context.session_id,
+                JSON.stringify(embeddingContextData),
+                vectorString,
+                'embedding',
+                0.7,
+                JSON.stringify(metadata),
+              ],
+            );
+
             processed++;
           } else {
             skipped++;
@@ -212,7 +256,7 @@ export class AIProcessor {
         aiResponse,
       );
 
-      // Store analysis results
+      // Store analysis results using TypeORM (no vector needed here)
       const analysisData = {
         userMessage,
         aiResponse,
@@ -273,7 +317,7 @@ export class AIProcessor {
         sentiments.reduce((sum, sentiment) => sum + sentiment, 0) /
           sentiments.length || 0;
 
-      // Store comprehensive summary
+      // Store comprehensive summary using TypeORM (no vector needed)
       const summaryData = {
         summary,
         keyTopics,
@@ -327,14 +371,17 @@ export class AIProcessor {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
 
-      const result = await this.aiContextRepository
-        .createQueryBuilder()
-        .delete()
-        .where('created_at < :cutoffDate', { cutoffDate })
-        .andWhere('context_type != :summaryType', { summaryType: 'summary' }) // Keep summaries longer
-        .execute();
+      // Use raw SQL for cleanup to handle any vector-related issues
+      const result = await this.aiContextRepository.query(
+        `
+        DELETE FROM ai_context
+        WHERE created_at < $1
+          AND context_type != $2
+        `,
+        [cutoffDate, 'summary'], // Keep summaries longer
+      );
 
-      this.logger.log(`Cleaned up ${result.affected} AI contexts`);
+      this.logger.log(`Cleaned up ${result[1]} AI contexts`);
     } catch (error) {
       this.logger.error(
         `Failed to cleanup contexts: ${error.message}`,
@@ -345,32 +392,133 @@ export class AIProcessor {
   }
 
   /**
-   * Generate embedding vector using Nomic Embed model with validation
+   * Find similar contexts using raw SQL vector operations
    */
-  private async generateEmbeddingVector(
-    text: string,
-  ): Promise<number[] | null> {
+  async findSimilarContexts(
+    embedding: number[],
+    sessionId: string,
+    limit: number = 5,
+    threshold: number = 0.7,
+  ): Promise<Array<{ content: string; similarity: number; createdAt: Date }>> {
     try {
-      if (!text || typeof text !== 'string' || text.trim().length === 0) {
-        this.logger.warn('Invalid text provided for embedding generation');
-        return null;
-      }
-
-      // Use the AI service to generate actual embeddings
-      const embedding = await this.aiService.generateEmbedding(text);
-
       if (!embedding || !VectorUtils.validateVector(embedding)) {
-        this.logger.warn('Generated embedding is invalid or null');
-        return null;
+        return [];
       }
 
-      // Normalize the embedding vector
-      return VectorUtils.normalize(embedding);
-    } catch (error) {
-      this.logger.error(
-        `Failed to generate embedding vector: ${error.message}`,
+      const vectorString = `[${embedding.join(',')}]`;
+
+      const similarContexts = await this.aiContextRepository.query(
+        `
+        SELECT 
+          context_data,
+          created_at,
+          (embedding <-> $1::vector) as distance
+        FROM ai_context
+        WHERE session_id = $2
+          AND context_type = $3
+          AND embedding IS NOT NULL
+          AND (embedding <-> $1::vector) < $4
+        ORDER BY distance ASC
+        LIMIT $5
+        `,
+        [
+          vectorString,
+          sessionId,
+          'embedding',
+          1 - threshold, // Convert similarity to distance
+          limit,
+        ],
       );
-      return null;
+
+      return similarContexts.map((ctx) => {
+        const contextData =
+          typeof ctx.context_data === 'string'
+            ? JSON.parse(ctx.context_data)
+            : ctx.context_data;
+
+        return {
+          content: contextData?.text || '',
+          similarity: 1 - ctx.distance, // Convert distance back to similarity
+          createdAt: ctx.created_at,
+        };
+      });
+    } catch (error) {
+      this.logger.error(`Failed to find similar contexts: ${error.message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Get embedding context statistics using raw SQL
+   */
+  async getEmbeddingContextStats(sessionId: string): Promise<{
+    totalEmbeddings: number;
+    averageDimensions: number;
+    oldestEmbedding: Date | null;
+    newestEmbedding: Date | null;
+  }> {
+    try {
+      const stats = await this.aiContextRepository.query(
+        `
+        SELECT 
+          COUNT(*) as total_embeddings,
+          AVG(array_length(embedding::float[], 1)) as avg_dimensions,
+          MIN(created_at) as oldest_embedding,
+          MAX(created_at) as newest_embedding
+        FROM ai_context
+        WHERE session_id = $1
+          AND context_type = $2
+          AND embedding IS NOT NULL
+        `,
+        [sessionId, 'embedding'],
+      );
+
+      const result = stats[0] || {};
+
+      return {
+        totalEmbeddings: parseInt(result.total_embeddings) || 0,
+        averageDimensions: parseFloat(result.avg_dimensions) || 0,
+        oldestEmbedding: result.oldest_embedding || null,
+        newestEmbedding: result.newest_embedding || null,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get embedding stats: ${error.message}`);
+      return {
+        totalEmbeddings: 0,
+        averageDimensions: 0,
+        oldestEmbedding: null,
+        newestEmbedding: null,
+      };
+    }
+  }
+
+  /**
+   * Update embedding using raw SQL
+   */
+  async updateEmbedding(
+    contextId: string,
+    embedding: number[],
+  ): Promise<boolean> {
+    try {
+      if (!embedding || !VectorUtils.validateVector(embedding)) {
+        return false;
+      }
+
+      const vectorString = `[${embedding.join(',')}]`;
+
+      const result = await this.aiContextRepository.query(
+        `
+        UPDATE ai_context
+        SET embedding = $1::vector, updated_at = NOW()
+        WHERE id = $2
+        `,
+        [vectorString, contextId],
+      );
+
+      return result[1] > 0; // Returns number of affected rows
+    } catch (error) {
+      this.logger.error(`Failed to update embedding: ${error.message}`);
+      return false;
     }
   }
 
@@ -472,18 +620,5 @@ export class AIProcessor {
     const end = new Date(sortedMessages[sortedMessages.length - 1].createdAt);
 
     return Math.floor((end.getTime() - start.getTime()) / 1000 / 60); // Duration in minutes
-  }
-
-  /**
-   * Simple hash function for pseudo-embeddings
-   */
-  private simpleHash(text: string): number {
-    let hash = 0;
-    for (let i = 0; i < text.length; i++) {
-      const char = text.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash);
   }
 }

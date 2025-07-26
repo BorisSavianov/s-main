@@ -43,9 +43,9 @@ import { AppConfigModule } from './config/config.module';
 
         return {
           ...config,
-          // cast logging to TypeORM's LoggerOptions
           logging:
             config.logging === 'all' ? 'all' : (config.logging as LogLevel[]),
+          synchronize: false, // disable automatic sync, handle migrations manually
           extra: {
             ...config.extra,
             max: config.extra?.max || 20,

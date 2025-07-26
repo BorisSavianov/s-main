@@ -35,7 +35,7 @@ CREATE TABLE chat_messages (
     sentiment_score DECIMAL(3,2),
     is_flagged BOOLEAN DEFAULT false,
     flag_reason TEXT,
-    embedding VECTOR(768), -- For semantic search
+    embedding vector(768), -- For semantic search
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -61,11 +61,15 @@ CREATE TABLE ai_context (
     context_data JSONB NOT NULL,
     personality_traits JSONB,
     conversation_history JSONB,
-    embedding VECTOR(768),
+    embedding vector(768),
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(session_id, user_id)
 );
+
+ALTER TABLE ai_context
+ALTER COLUMN embedding TYPE vector(768) 
+USING embedding::vector;
 
 
 
@@ -161,11 +165,11 @@ ALTER TABLE ai_context
 ADD CONSTRAINT check_embedding_format 
 CHECK (validate_embedding_format(embedding));
 
+
+
+
 -- Record this migration
 INSERT INTO migrations (migration_name) VALUES ('004_chat_system');
 
--- This assumes your embeddings are 768-dimensional
-ALTER TABLE ai_context
-ALTER COLUMN embedding TYPE vector(768) USING embedding::vector;
 
 COMMIT;

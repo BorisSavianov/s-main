@@ -86,11 +86,30 @@ export class AIService {
     );
   }
 
+  dot(a: number[], b: number[]): number {
+    return a.reduce((sum, val, i) => sum + val * b[i], 0);
+  }
+
+  norm(v: number[]): number {
+    return Math.sqrt(v.reduce((sum, val) => sum + val * val, 0));
+  }
+
   /**
    * Generate AI response to user message
    */
   async generateResponse(context: ChatContext): Promise<AIResponse> {
     try {
+      const a = await this.generateEmbedding(
+        'I have been struggling with sleep issues',
+      );
+      const b = await this.generateEmbedding(
+        "I just can't get over my sleep issues",
+      );
+
+      const cosineSimilarity =
+        this.dot(a!, b!) / (this.norm(a!) * this.norm(b!));
+      this.logger.debug('Cosine similarity:', cosineSimilarity.toFixed(4));
+
       this.logger.log('1');
       await this.storeContext(context);
       this.logger.log('2');
@@ -123,7 +142,275 @@ export class AIService {
   }
 
   /**
-   * Get embedding statistics for a session
+   * Store embedding using raw SQL to bypass TypeORM vector limitations
+   */
+  async storeEmbeddingContext(
+    sessionId: string,
+    text: string,
+    embedding: number[],
+    messageType: 'user' | 'ai' = 'user',
+    messageId?: string,
+  ): Promise<void> {
+    try {
+      const vectorString = `[${embedding.join(',')}]`;
+
+      const contextData = {
+        text,
+        messageType,
+        messageId,
+        embeddingGenerated: true,
+        embeddingModel: this.embeddingModel,
+        textLength: text.length,
+      };
+
+      // Use raw SQL to insert with vector type
+      await this.aiContextRepository.query(
+        `
+        INSERT INTO ai_context (
+          session_id, 
+          context_data, 
+          embedding, 
+          context_type, 
+          relevance_score,
+          metadata,
+          created_at,
+          updated_at
+        ) VALUES ($1, $2, $3::vector, $4, $5, $6, NOW(), NOW())
+        `,
+        [
+          sessionId,
+          JSON.stringify(contextData),
+          vectorString,
+          'embedding',
+          0.8,
+          JSON.stringify({
+            embeddingModel: this.embeddingModel,
+            textLength: text.length,
+            messageType,
+            vectorDimensions: embedding.length,
+          }),
+        ],
+      );
+
+      this.logger.debug(
+        `Embedding stored for session ${sessionId} (dimensions: ${embedding.length})`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to store embedding context: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Find semantically similar messages using raw SQL for vector operations
+   * Logs all comparisons regardless of match threshold
+   */
+  async findSimilarMessages(
+    query: string,
+    sessionId: string,
+    limit: number = 5,
+    threshold: number = 0.6,
+  ): Promise<Array<{ content: string; similarity: number; createdAt: Date }>> {
+    try {
+      const queryEmbedding = await this.generateEmbedding(query);
+      if (!queryEmbedding) {
+        this.logger.warn('Failed to generate query embedding');
+        return [];
+      }
+
+      const vectorLiteral = `[${queryEmbedding.join(',')}]`;
+
+      // Try cosine distance first (should give values between 0-2)
+      const allResults = await this.aiContextRepository.query(
+        `
+      SELECT 
+        context_data,
+        created_at,
+        embedding,
+        (embedding <=> $1::vector) as cosine_distance,
+        (embedding <-> $1::vector) as l2_distance,
+        (1 - (embedding <#> $1::vector)) as dot_similarity
+      FROM ai_context
+      WHERE session_id = $2
+        AND context_type IN ('embedding', 'conversation', 'text')
+        AND embedding IS NOT NULL
+      ORDER BY cosine_distance ASC
+      `,
+        [vectorLiteral, sessionId],
+      );
+
+      // Log all distance types for debugging
+      allResults.forEach((row: any) => {
+        this.logger.debug(`Cosine distance: ${row.cosine_distance}`);
+        this.logger.debug(`L2 distance: ${row.l2_distance}`);
+        this.logger.debug(`Dot similarity: ${row.dot_similarity}`);
+      });
+
+      // Use the most appropriate distance metric
+      const processedResults = allResults.map((row: any) => {
+        // For cosine distance (0-2 range, 0 = identical)
+        let similarity = Math.max(0, Math.min(1, 1 - row.cosine_distance / 2));
+
+        // Alternative: use dot product similarity if available
+        /*
+        if (row.dot_similarity !== null && row.dot_similarity >= 0) {
+          similarity = Math.max(0, Math.min(1, row.dot_similarity));
+        }*/
+
+        const content =
+          row.context_data?.text || row.context_data?.userMessage || '';
+
+        this.logger.debug(
+          `Content: "${content}", Final similarity: ${similarity}`,
+        );
+
+        return {
+          content,
+          similarity,
+          createdAt: new Date(row.created_at),
+          rawDistances: {
+            cosine: row.cosine_distance,
+            l2: row.l2_distance,
+            dot: row.dot_similarity,
+          },
+        };
+      });
+
+      // Filter by threshold and return top results
+      return processedResults
+        .filter((result) => result.similarity >= threshold)
+        .slice(0, limit)
+        .map(({ rawDistances, ...rest }) => rest); // Remove debug info from final result
+    } catch (error) {
+      this.logger.error(`Failed to find similar messages: ${error.message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Enhanced method to find similar messages with fallback
+   */
+  async findSimilarMessagesWithFallback(
+    query: string,
+    sessionId: string,
+    limit: number = 5,
+    threshold: number = 0.6,
+  ): Promise<
+    Array<{ content: string; similarity?: number | undefined; createdAt: Date }>
+  > {
+    try {
+      // Try vector similarity first
+      const vectorResults = await this.findSimilarMessages(
+        query,
+        sessionId,
+        limit,
+        threshold,
+      );
+
+      this.logger.log('vectorResults: ' + JSON.stringify(vectorResults));
+
+      if (vectorResults.length > 0) {
+        return vectorResults;
+      }
+
+      // Fallback to keyword search if no vector results
+      this.logger.debug(
+        'No vector results found, falling back to keyword search',
+      );
+
+      this.logger.log(
+        'keywordMatches: ' +
+          JSON.stringify(
+            await this.findKeywordMatches(query, sessionId, limit),
+          ),
+      );
+      return await this.findKeywordMatches(query, sessionId, limit);
+    } catch (error) {
+      this.logger.error(
+        `Vector search failed, using keyword fallback: ${error.message}`,
+      );
+      return await this.findKeywordMatches(query, sessionId, limit);
+    }
+  }
+
+  /**
+   * Find and cluster similar conversations using raw SQL
+   */
+  async findSimilarConversations(
+    sessionId: string,
+    limit: number = 3,
+  ): Promise<
+    Array<{
+      sessionId: string;
+      similarity: number;
+      messageCount: number;
+      lastActivity: Date;
+    }>
+  > {
+    try {
+      // Get the current session's embedding centroid using raw SQL
+      const sessionEmbeddings = await this.aiContextRepository.query(
+        `
+        SELECT embedding
+        FROM ai_context
+        WHERE session_id = $1
+          AND context_type = 'embedding'
+          AND embedding IS NOT NULL
+        `,
+        [sessionId],
+      );
+
+      if (sessionEmbeddings.length === 0) {
+        return [];
+      }
+
+      // Calculate centroid in application code
+      const centroid = this.calculateEmbeddingCentroid(
+        sessionEmbeddings.map((row: any) => row.embedding),
+      );
+
+      if (!centroid) {
+        return [];
+      }
+
+      const vectorString = `[${centroid.join(',')}]`;
+
+      // Find similar sessions using raw SQL
+      const similarSessions = await this.aiContextRepository.query(
+        `
+        SELECT 
+          session_id,
+          COUNT(*) as message_count,
+          MAX(created_at) as last_activity,
+          AVG(embedding <#> $1::vector) as avg_distance
+        FROM ai_context
+        WHERE session_id != $2
+          AND context_type = 'embedding'
+          AND embedding IS NOT NULL
+        GROUP BY session_id
+        HAVING AVG(embedding <#> $1::vector) < $3
+        ORDER BY avg_distance ASC
+        LIMIT $4
+        `,
+        [vectorString, sessionId, 0.5, limit],
+      );
+
+      return similarSessions.map((row: any) => ({
+        sessionId: row.session_id,
+        similarity: Math.max(0, 1 - row.avg_distance),
+        messageCount: parseInt(row.message_count),
+        lastActivity: new Date(row.last_activity),
+      }));
+    } catch (error) {
+      this.logger.error(
+        `Failed to find similar conversations: ${error.message}`,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Get embedding statistics using raw SQL
    */
   async getEmbeddingStats(sessionId: string): Promise<{
     totalEmbeddings: number;
@@ -132,26 +419,29 @@ export class AIService {
     lastGenerated: Date | null;
   }> {
     try {
-      const embeddingContexts = await this.aiContextRepository.find({
-        where: {
-          sessionId,
-          contextType: 'embedding',
-        },
-        order: { createdAt: 'DESC' },
-      });
+      // Get embedding stats using raw SQL
+      const [embeddingStats] = await this.aiContextRepository.query(
+        `
+        SELECT 
+          COUNT(*) FILTER (WHERE context_type = 'embedding' AND embedding IS NOT NULL) as total_embeddings,
+          COUNT(*) as total_contexts,
+          MAX(created_at) FILTER (WHERE context_type = 'embedding') as last_generated
+        FROM ai_context
+        WHERE session_id = $1
+        `,
+        [sessionId],
+      );
 
-      const totalContexts = await this.aiContextRepository.count({
-        where: { sessionId },
-      });
-
-      const totalEmbeddings = embeddingContexts.length;
+      const totalEmbeddings = parseInt(embeddingStats.total_embeddings || '0');
+      const totalContexts = parseInt(embeddingStats.total_contexts || '0');
       const embeddingCoverage =
         totalContexts > 0 ? (totalEmbeddings / totalContexts) * 100 : 0;
-      const lastGenerated =
-        embeddingContexts.length > 0 ? embeddingContexts[0].createdAt : null;
+      const lastGenerated = embeddingStats.last_generated
+        ? new Date(embeddingStats.last_generated)
+        : null;
 
-      // Calculate average similarity (this is a placeholder - would need actual similarity calculations)
-      const averageSimilarity = 0.75; // Placeholder value
+      // Placeholder for average similarity calculation
+      const averageSimilarity = 0.75;
 
       return {
         totalEmbeddings,
@@ -179,7 +469,7 @@ export class AIService {
         'batch-generate-embeddings',
         { sessionId },
         {
-          delay: 5000, // Delay to avoid overwhelming the system
+          delay: 5000,
           attempts: 3,
           backoff: {
             type: 'exponential',
@@ -195,86 +485,6 @@ export class AIService {
       this.logger.error(
         `Failed to queue batch embedding generation: ${error.message}`,
       );
-    }
-  }
-
-  /**
-   * Find and cluster similar conversations
-   */
-  async findSimilarConversations(
-    sessionId: string,
-    limit: number = 3,
-  ): Promise<
-    Array<{
-      sessionId: string;
-      similarity: number;
-      messageCount: number;
-      lastActivity: Date;
-    }>
-  > {
-    try {
-      // Get the current session's embedding centroid
-      const sessionEmbeddings = await this.aiContextRepository.find({
-        where: {
-          sessionId,
-          contextType: 'embedding',
-        },
-        select: ['embedding'],
-      });
-
-      if (sessionEmbeddings.length === 0) {
-        return [];
-      }
-
-      // Calculate centroid (average embedding)
-      const centroid = this.calculateEmbeddingCentroid(
-        sessionEmbeddings
-          .map((ctx) => ctx.embedding)
-          .filter((emb) => emb !== null),
-      );
-
-      if (!centroid) {
-        return [];
-      }
-
-      const vectorString = `[${centroid.join(',')}]`;
-
-      // Find similar sessions
-      const similarSessions = await this.aiContextRepository
-        .createQueryBuilder('context')
-        .select([
-          'context.sessionId',
-          'COUNT(*) as messageCount',
-          'MAX(context.createdAt) as lastActivity',
-          `AVG(context.embedding <-> '${vectorString}'::vector) as avgDistance`,
-        ])
-        .where('context.sessionId != :sessionId', { sessionId })
-        .andWhere('context.contextType = :contextType', {
-          contextType: 'embedding',
-        })
-        .andWhere('context.embedding IS NOT NULL')
-        .groupBy('context.sessionId')
-        .having(
-          `AVG(context.embedding <-> '${vectorString}'::vector) < :threshold`,
-          {
-            threshold: 0.5,
-          },
-        )
-        .orderBy('avgDistance', 'ASC')
-        .limit(limit)
-        .getRawMany();
-
-      return similarSessions.map((session) => ({
-        sessionId: session.context_sessionId,
-        similarity: 1 - session.avgDistance,
-        messageCount: parseInt(session.messageCount),
-        lastActivity: session.lastActivity,
-      }));
-    } catch (error) {
-      this.logger.error(
-        `Failed to find similar conversations: ${error.message}`,
-      );
-      return [];
     }
   }
 
@@ -306,25 +516,24 @@ export class AIService {
   }
 
   /**
-   * Enhanced context retrieval with hybrid search (semantic + keyword)
+   * Enhanced context retrieval with hybrid search
    */
   async getEnhancedContext(query: string, sessionId: string): Promise<string> {
     try {
-      // Get semantic matches
-      const semanticMatches = await this.findSimilarMessages(
+      // Use the improved method with fallback
+      const semanticMatches = await this.findSimilarMessagesWithFallback(
         query,
         sessionId,
         3,
         0.7,
       );
 
-      // Get keyword matches (fallback)
+      // Get additional keyword matches
       const keywordMatches = await this.findKeywordMatches(query, sessionId, 2);
 
       // Combine and deduplicate
       const allMatches = [...semanticMatches];
 
-      // Add keyword matches that aren't already included
       for (const keywordMatch of keywordMatches) {
         const isDuplicate = allMatches.some(
           (match) =>
@@ -335,7 +544,7 @@ export class AIService {
         if (!isDuplicate) {
           allMatches.push({
             ...keywordMatch,
-            similarity: keywordMatch.similarity ?? 0, // default to 0 if undefined
+            similarity: keywordMatch.similarity ?? 0,
           });
         }
       }
@@ -344,7 +553,7 @@ export class AIService {
         return '';
       }
 
-      // Sort by relevance (semantic similarity first, then recency)
+      // Sort by relevance
       allMatches.sort((a, b) => {
         if (a.similarity && b.similarity) {
           return b.similarity - a.similarity;
@@ -388,10 +597,10 @@ export class AIService {
         .createQueryBuilder('context')
         .where('context.sessionId = :sessionId', { sessionId })
         .andWhere('context.contextType IN (:...types)', {
-          types: ['conversation', 'text'],
+          types: ['conversation', 'text', 'embedding'],
         })
         .orderBy('context.createdAt', 'DESC')
-        .limit(50) // Search recent messages
+        .limit(50)
         .getMany();
 
       const matches: Array<{
@@ -437,6 +646,34 @@ export class AIService {
   }
 
   /**
+   * Get relevant context using improved semantic search
+   */
+  async getRelevantContext(query: string, sessionId: string): Promise<string> {
+    try {
+      const similarMessages = await this.findSimilarMessagesWithFallback(
+        query,
+        sessionId,
+        5,
+        0.7,
+      );
+
+      if (similarMessages.length === 0) {
+        return '';
+      }
+
+      const contextParts = similarMessages.map(
+        (msg, index) =>
+          `[Context ${index + 1} - Similarity: ${msg.similarity!.toFixed(2)}]: ${msg.content}`,
+      );
+
+      return `\nRelevant conversation context:\n${contextParts.join('\n')}\n`;
+    } catch (error) {
+      this.logger.error(`Failed to get relevant context: ${error.message}`);
+      return '';
+    }
+  }
+
+  /**
    * Generate session summary
    */
   async generateSessionSummary(
@@ -467,16 +704,16 @@ export class AIService {
 Sentiment score:`;
 
       const response = await this.callOllama(prompt, {
-        temperature: 0.1, // Lower temperature for more consistent results
+        temperature: 0.1,
       });
 
       const scoreMatch = response.response.match(/-?\d+\.?\d*/);
       if (scoreMatch) {
         const score = parseFloat(scoreMatch[0]);
-        return Math.max(-1, Math.min(1, score)); // Clamp between -1 and 1
+        return Math.max(-1, Math.min(1, score));
       }
 
-      return 0; // Neutral fallback
+      return 0;
     } catch (error) {
       this.logger.error(`Failed to analyze sentiment: ${error.message}`);
       return 0;
@@ -546,160 +783,6 @@ Overall sentiment score:`;
     } catch (error) {
       this.logger.error(`Failed to generate embedding: ${error.message}`);
       return null;
-    }
-  }
-
-  /**
-   * Find semantically similar messages using embeddings
-   */
-  async findSimilarMessagesAlternative(
-    query: string,
-    sessionId: string,
-    limit: number = 5,
-    threshold: number = 0.7,
-  ): Promise<Array<{ content: string; similarity: number; createdAt: Date }>> {
-    try {
-      const queryEmbedding = await this.generateEmbedding(query);
-      if (!queryEmbedding) {
-        return [];
-      }
-
-      // Convert embedding to PostgreSQL vector format
-      const vectorString = `[${queryEmbedding.join(',')}]`;
-
-      // Use raw SQL query to properly handle vector operations
-      const similarContexts = await this.aiContextRepository.query(
-        `
-      SELECT 
-        context_data,
-        created_at,
-        (embedding <-> $1::vector) as distance
-      FROM ai_context
-      WHERE session_id = $2
-        AND context_type = $3
-        AND embedding IS NOT NULL
-        AND (embedding <-> $1::vector) < $4
-      ORDER BY distance ASC
-      LIMIT $5
-    `,
-        [
-          vectorString,
-          sessionId,
-          'embedding',
-          1 - threshold, // Convert similarity to distance
-          limit,
-        ],
-      );
-
-      return similarContexts.map((ctx) => ({
-        content: ctx.context_data?.text || '',
-        similarity: 1 - ctx.distance, // Convert distance back to similarity
-        createdAt: ctx.created_at,
-      }));
-    } catch (error) {
-      this.logger.error(`Failed to find similar messages: ${error.message}`);
-      return [];
-    }
-  }
-
-  /**
-   * Alternative method using TypeORM query builder with proper casting
-   */
-  async findSimilarMessages(
-    query: string,
-    sessionId: string,
-    limit: number = 5,
-    threshold: number = 0.7,
-  ): Promise<Array<{ content: string; similarity: number; createdAt: Date }>> {
-    try {
-      const queryEmbedding = await this.generateEmbedding(query);
-      if (!queryEmbedding) {
-        return [];
-      }
-
-      // Convert embedding to PostgreSQL vector format
-      const vectorString = `[${queryEmbedding.join(',')}]`;
-
-      const similarContexts = await this.aiContextRepository
-        .createQueryBuilder('context')
-        .select([
-          'context.contextData as context_data',
-          'context.createdAt as created_at',
-        ])
-        .addSelect(`(context.embedding <-> :vectorString::vector)`, 'distance')
-        .where('context.sessionId = :sessionId', { sessionId })
-        .andWhere('context.contextType = ANY(:contextTypes)', {
-          contextTypes: ['conversation', 'text', 'embedding'],
-        })
-        .andWhere('context.embedding IS NOT NULL')
-        .andWhere(
-          `(context.embedding <-> :vectorString::vector) < :threshold`,
-          {
-            vectorString,
-            threshold: 1 - threshold,
-          },
-        )
-        .orderBy('distance', 'ASC')
-        .limit(limit)
-        .getRawMany();
-
-      // const allContexts = await this.aiContextRepository
-      //   .createQueryBuilder('context')
-      //   .select([
-      //     'context.contextData as context_data',
-      //     'context.createdAt as created_at',
-      //   ])
-      //   .addSelect(
-      //     `(context.embedding::vector <-> ${vectorString}::vector)`,
-      //     'distance',
-      //   )
-      //   .where('context.sessionId = :sessionId', { sessionId })
-      //   .orderBy('distance', 'ASC')
-      //   .limit(limit)
-      //   .getRawMany();
-
-      // console.log('allContexts: ' + JSON.stringify(allContexts, null, 2));
-
-      console.log('SimilarContexts: ' + similarContexts);
-
-      return similarContexts.map((ctx) => ({
-        content: ctx.context_data?.text || '',
-        similarity: 1 - ctx.distance, // Convert distance back to similarity
-        createdAt: ctx.created_at,
-      }));
-    } catch (error) {
-      this.logger.error(`Failed to find similar messages: ${error.message}`);
-      return [];
-    }
-  }
-
-  /**
-   * Retrieve relevant context using semantic search
-   */
-  async getRelevantContext(query: string, sessionId: string): Promise<string> {
-    try {
-      const similarMessages = await this.findSimilarMessages(
-        query,
-        sessionId,
-        5,
-        0.7,
-      );
-
-      if (similarMessages.length === 0) {
-        return '';
-      }
-
-      const contextParts = similarMessages.map(
-        (msg, index) =>
-          `[Context ${index + 1} - Similarity: ${msg.similarity.toFixed(2)}]: ${msg.content}`,
-      );
-
-      contextParts.forEach((el) => console.log('context part: ' + el));
-
-      return `\nRelevant conversation context:\n${contextParts.join('\n')}\n`;
-    } catch (error) {
-      this.logger.error(`Failed to get relevant context: ${error.message}`);
-      return '';
     }
   }
 
@@ -825,13 +908,14 @@ Topics:`;
       .map((msg) => `${msg.senderType}: ${msg.content}`)
       .join('\n');
 
-    // Get semantic context
+    // Get semantic context using improved method
     const semanticContext = await this.getRelevantContext(
       context.userMessage,
       context.sessionId,
     );
 
-    console.log(semanticContext);
+    this.logger.log('history: ' + JSON.stringify(recentHistory));
+    this.logger.log('semanticContext: ' + JSON.stringify(semanticContext));
 
     return `You are a supportive mental health AI assistant. You provide empathetic, helpful responses while being careful not to provide medical advice. Always encourage users to seek professional help for serious concerns.
 
@@ -909,7 +993,6 @@ Summary:`;
           );
         }
 
-        // Wait before retry (exponential backoff)
         await new Promise((resolve) =>
           setTimeout(resolve, Math.pow(2, attempt) * 1000),
         );
@@ -923,7 +1006,6 @@ Summary:`;
    * Calculate confidence score based on response metadata
    */
   private calculateConfidence(response: OllamaResponse): number {
-    // Simple heuristic based on response length and processing time
     const responseLength = response.response?.length || 0;
     const hasMetrics = response.eval_count && response.eval_duration;
 
@@ -935,7 +1017,7 @@ Summary:`;
   }
 
   /**
-   * Store AI context for future reference
+   * Store AI context for future reference - updated to use raw SQL for embeddings
    */
   private async storeContext(context: ChatContext): Promise<void> {
     try {
@@ -945,22 +1027,41 @@ Summary:`;
         timestamp: new Date().toISOString(),
       };
 
-      const aiContext = this.aiContextRepository.create({
-        sessionId: context.sessionId,
-        userId: null, // Would be populated if we had user info
-        contextData,
-        embedding: await this.generateEmbedding(context.userMessage),
-        contextType: 'conversation',
-        relevanceScore: 1.0,
-      });
+      const embedding = await this.generateEmbedding(context.userMessage);
 
-      console.log('aiContext: ' + JSON.stringify(contextData.recentMessages));
-      console.log('aiContext: ' + JSON.stringify(contextData.userMessage));
+      if (embedding) {
+        // Store with embedding using your existing method (which uses raw SQL)
+        await this.storeEmbeddingContext(
+          context.sessionId,
+          context.userMessage,
+          embedding,
+          'user',
+        );
+      } else {
+        // Store without embedding using raw SQL directly
+        const query = `
+        INSERT INTO ai_context (
+          session_id,
+          user_id,
+          context_data,
+          embedding,
+          context_type,
+          relevance_score,
+          created_at,
+          updated_at
+        ) VALUES ($1, $2, $3, NULL, $4, $5, NOW(), NOW())
+      `;
 
-      await this.aiContextRepository.save(aiContext);
+        await this.aiContextRepository.query(query, [
+          context.sessionId,
+          null,
+          JSON.stringify(contextData),
+          'conversation',
+          1.0,
+        ]);
+      }
     } catch (error) {
       this.logger.error(`Failed to store AI context: ${error.message}`);
-      // Don't throw - this shouldn't block the main response
     }
   }
 
@@ -973,7 +1074,7 @@ Summary:`;
   ): Promise<void> {
     try {
       // Queue embedding generation
-      await this.aiQueue.add(
+      this.aiQueue.add(
         'generate-embedding',
         {
           text: context.userMessage,
@@ -991,7 +1092,7 @@ Summary:`;
       );
 
       // Queue response analysis
-      await this.aiQueue.add(
+      this.aiQueue.add(
         'analyze-response',
         {
           userMessage: context.userMessage,
