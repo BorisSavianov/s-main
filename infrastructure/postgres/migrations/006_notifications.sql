@@ -112,65 +112,75 @@ CREATE TRIGGER update_notification_batch_jobs_updated_at BEFORE UPDATE ON notifi
 
 -- Function to check notification preferences
 CREATE OR REPLACE FUNCTION should_send_notification(
-    p_user_id UUID,
-    p_category VARCHAR(50),
-    p_type notification_type,
-    p_scheduled_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  p_user_id        UUID,
+  p_category       VARCHAR(50),
+  p_type           notification_type,
+  p_scheduled_time TIMESTAMPTZ
 ) RETURNS BOOLEAN AS $$
 DECLARE
-    prefs RECORD;
-    is_quiet_hours BOOLEAN DEFAULT false;
-    current_time TIME;
+  prefs            RECORD;
+  is_quiet_hours   BOOLEAN DEFAULT false;
+  v_scheduled_time TIME;            -- rename variable
 BEGIN
-    -- Get user preferences
-    SELECT * INTO prefs 
-    FROM notification_preferences 
-    WHERE user_id = p_user_id AND notification_category = p_category;
-    
-    -- If no preferences found, use defaults
-    IF NOT FOUND THEN
-        RETURN true;
-    END IF;
-    
-    -- Check if notification type is enabled
-    CASE p_type
-        WHEN 'email' THEN
-            IF NOT prefs.email_enabled THEN RETURN false; END IF;
-        WHEN 'sms' THEN
-            IF NOT prefs.sms_enabled THEN RETURN false; END IF;
-        WHEN 'push' THEN
-            IF NOT prefs.push_enabled THEN RETURN false; END IF;
-        WHEN 'in_app' THEN
-            IF NOT prefs.in_app_enabled THEN RETURN false; END IF;
-    END CASE;
-    
-    -- Check quiet hours
-    IF prefs.quiet_hours_start IS NOT NULL AND prefs.quiet_hours_end IS NOT NULL THEN
-        current_time := p_scheduled_time::TIME;
-        
-        IF prefs.quiet_hours_start <= prefs.quiet_hours_end THEN
-            -- Same day quiet hours
-            is_quiet_hours := current_time BETWEEN prefs.quiet_hours_start AND prefs.quiet_hours_end;
-        ELSE
-            -- Overnight quiet hours
-            is_quiet_hours := current_time >= prefs.quiet_hours_start OR current_time <= prefs.quiet_hours_end;
-        END IF;
-        
-        IF is_quiet_hours THEN RETURN false; END IF;
-    END IF;
-    
+  -- Load preferences
+  SELECT * INTO prefs
+    FROM notification_preferences
+   WHERE user_id = p_user_id
+     AND notification_category = p_category;
+
+  IF NOT FOUND THEN
     RETURN true;
+  END IF;
+
+  -- Check channel enabled
+  CASE p_type
+    WHEN 'email'   THEN IF NOT prefs.email_enabled   THEN RETURN false; END IF;
+    WHEN 'sms'     THEN IF NOT prefs.sms_enabled     THEN RETURN false; END IF;
+    WHEN 'push'    THEN IF NOT prefs.push_enabled    THEN RETURN false; END IF;
+    WHEN 'in_app'  THEN IF NOT prefs.in_app_enabled  THEN RETURN false; END IF;
+  END CASE;
+
+  -- Quiet‐hours
+  IF prefs.quiet_hours_start IS NOT NULL
+     AND prefs.quiet_hours_end IS NOT NULL THEN
+
+    -- cast once into our renamed variable
+    v_scheduled_time := p_scheduled_time::TIME;
+
+    IF prefs.quiet_hours_start <= prefs.quiet_hours_end THEN
+      is_quiet_hours := v_scheduled_time
+                        BETWEEN prefs.quiet_hours_start
+                            AND prefs.quiet_hours_end;
+    ELSE
+      is_quiet_hours := v_scheduled_time >= prefs.quiet_hours_start
+                      OR v_scheduled_time <= prefs.quiet_hours_end;
+    END IF;
+
+    IF is_quiet_hours THEN
+      RETURN false;
+    END IF;
+  END IF;
+
+  RETURN true;
 END;
 $$ LANGUAGE plpgsql;
 
+
+
 -- Insert default notification templates
 INSERT INTO notification_templates (template_name, template_category, subject_template, body_template, supported_channels, variables) VALUES
-('appointment_reminder', 'appointments', 'Appointment Reminder', 'Hi {{user_name}}, you have an appointment with {{counselor_name}} on {{appointment_date}} at {{appointment_time}}.', ARRAY['email', 'sms', 'push'], '["user_name", "counselor_name", "appointment_date", "appointment_time"]'),
-('mood_reminder', 'mood_reminders', 'Daily Mood Check-in', 'Don''t forget to log your mood for today! It only takes a minute.', ARRAY['push', 'in_app'], '["user_name"]'),
-('appointment_confirmed', 'appointments', 'Appointment Confirmed', 'Your appointment with {{counselor_name}} on {{appointment_date}} at {{appointment_time}} has been confirmed.', ARRAY['email', 'push', 'in_app'], '["user_name", "counselor_name", "appointment_date", "appointment_time"]'),
-('appointment_cancelled', 'appointments', 'Appointment Cancelled', 'Your appointment with {{counselor_name}} on {{appointment_date}} at {{appointment_time}} has been cancelled.', ARRAY['email', 'push', 'in_app'], '["user_name", "counselor_name", "appointment_date", "appointment_time"]'),
-('welcome', 'system', 'Welcome to Mental Health Support', 'Welcome {{user_name}}! We''re here to support you on your mental health journey.', ARRAY['email', 'in_app'], '["user_name"]'),
-('password_reset', 'system', 'Password Reset Request', 'Click the link below to reset your password: {{reset_link}}', ARRAY['email'], '["user_name", "reset_link"]');
+('appointment_reminder', 'appointments', 'Appointment Reminder', 'Hi {{user_name}}, you have an appointment with {{counselor_name}} on {{appointment_date}} at {{appointment_time}}.',
+ ARRAY['email'::notification_type, 'sms'::notification_type, 'push'::notification_type], '["user_name", "counselor_name", "appointment_date", "appointment_time"]'),
+('mood_reminder', 'mood_reminders', 'Daily Mood Check-in', 'Don''t forget to log your mood for today! It only takes a minute.',
+ ARRAY['push'::notification_type, 'in_app'::notification_type], '["user_name"]'),
+('appointment_confirmed', 'appointments', 'Appointment Confirmed', 'Your appointment with {{counselor_name}} on {{appointment_date}} at {{appointment_time}} has been confirmed.',
+ ARRAY['email'::notification_type, 'push'::notification_type, 'in_app'::notification_type], '["user_name", "counselor_name", "appointment_date", "appointment_time"]'),
+('appointment_cancelled', 'appointments', 'Appointment Cancelled', 'Your appointment with {{counselor_name}} on {{appointment_date}} at {{appointment_time}} has been cancelled.',
+ ARRAY['email'::notification_type, 'push'::notification_type, 'in_app'::notification_type], '["user_name", "counselor_name", "appointment_date", "appointment_time"]'),
+('welcome', 'system', 'Welcome to Mental Health Support', 'Welcome {{user_name}}! We''re here to support you on your mental health journey.',
+ ARRAY['email'::notification_type, 'in_app'::notification_type], '["user_name"]'),
+('password_reset', 'system', 'Password Reset Request', 'Click the link below to reset your password: {{reset_link}}',
+ ARRAY['email'::notification_type], '["user_name", "reset_link"]');
 
 -- Insert default notification preferences for common categories
 INSERT INTO notification_preferences (user_id, notification_category, email_enabled, sms_enabled, push_enabled, in_app_enabled, frequency)

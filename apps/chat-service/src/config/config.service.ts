@@ -136,11 +136,14 @@ export class AppConfigService {
         port: this.configService.get('REDIS_PORT', { infer: true }),
         password: this.configService.get('REDIS_PASSWORD', { infer: true }),
         db: this.configService.get('REDIS_BULL_DB', { infer: true }),
-        // maxRetriesPerRequest: 3,
-        retryDelayOnFailover: 100,
-        // enableReadyCheck: true,
-        lazyConnect: true,
       },
+
+      // These go at top level, not inside redis:
+      retryDelayOnFailover: 100,
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+      lazyConnect: true,
+
       defaultJobOptions: {
         removeOnComplete: 10,
         removeOnFail: 50,
@@ -151,7 +154,7 @@ export class AppConfigService {
         },
       },
       settings: {
-        stalledInterval: 30 * 1000,
+        stalledInterval: 30_000,
         maxStalledCount: 1,
       },
     };

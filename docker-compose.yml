@@ -12,8 +12,10 @@ services:
       POSTGRES_INITDB_ARGS: '--encoding=UTF8 --lc-collate=C --lc-ctype=C'
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh
       - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./infrastructure/postgres/migrations:/docker-entrypoint-initdb.d/migrations
+
     ports:
       - '5432:5432'
     healthcheck:
@@ -178,12 +180,12 @@ services:
       - SMTP_PASS=mjuw vofq dljx cyud
       - MAIL_FROM_NAME=SerenitySpace
       - MAIL_FROM_ADDRESS=bsavyanov@gmail.com
-      - REDIS_HOST=localhost
+      - REDIS_HOST=serenity_space_redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=mentalhealth2024
       - REDIS_DB=0
       - REDIS_KEY_PREFIX=chat_service
-      - REDIS_BULL_DB=1
+      - REDIS_BULL_DB=0
       - REDIS_SESSION_DB=2
       - REDIS_CACHE_DB=3
       - REDIS_TLS_ENABLED=false
@@ -283,6 +285,7 @@ services:
       - GOOGLE_CLIENT_ID=265701614421-9qahv7sm5ib3fqe5m904g8ql2tdf5d9g.apps.googleusercontent.com
       - GOOGLE_CLIENT_SECRET=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
       - GOOGLE_CALLBACK_URL=http://localhost:4000/auth/google/callback
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
 
     ports:
       - '4002:4002'

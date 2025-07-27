@@ -5,8 +5,6 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
-DROP TABLE IF EXISTS ai_context CASCADE;
-
 
 -- Chat sessions table
 CREATE TABLE chat_sessions (
@@ -16,13 +14,21 @@ CREATE TABLE chat_sessions (
     session_token VARCHAR(255) UNIQUE NOT NULL,
     is_anonymous BOOLEAN DEFAULT false,
     is_active BOOLEAN DEFAULT true,
-    started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    ended_at TIMESTAMP WITH TIME ZONE,
+    started_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMPTZ,
     summary TEXT,
-    overall_sentiment DECIMAL(3,2),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    overall_sentiment DECIMAL(3, 2),
+    requires_intervention BOOLEAN DEFAULT false,
+    intervention_reason TEXT,
+    total_messages INT DEFAULT 0,
+    average_sentiment DECIMAL(3, 2),
+    session_metrics JSONB,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    session_metadata JSON NULL
 );
+
+
 
 -- Chat messages table
 CREATE TABLE chat_messages (
@@ -59,6 +65,7 @@ CREATE TABLE ai_context (
     session_id UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     context_data JSONB NOT NULL,
+    context_type VARCHAR(50),
     personality_traits JSONB,
     conversation_history JSONB,
     embedding vector(768),
@@ -128,44 +135,15 @@ $$ LANGUAGE plpgsql;
 -- Create a functional index for vector operations
 -- This allows efficient vector similarity searches even with text storage
 CREATE INDEX idx_ai_context_embedding_vector 
-ON ai_context USING ivfflat (embedding::vector(768) vector_cosine_ops)
+ON ai_context USING ivfflat (embedding vector_cosine_ops)
 WHERE embedding IS NOT NULL;
+
 
 -- Create trigger for updated_at
 CREATE TRIGGER update_ai_context_updated_at 
     BEFORE UPDATE ON ai_context 
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
-
--- Helper function to validate vector format
-CREATE OR REPLACE FUNCTION validate_embedding_format(embedding_text TEXT)
-RETURNS BOOLEAN AS $$
-BEGIN
-    -- Check if it's a valid vector format [1,2,3,...]
-    IF embedding_text IS NULL THEN
-        RETURN TRUE;
-    END IF;
-    
-    IF NOT (embedding_text ~ '^\[[\d.,\s-]+\]$') THEN
-        RETURN FALSE;
-    END IF;
-    
-    -- Try to cast to vector to validate
-    BEGIN
-        PERFORM embedding_text::vector;
-        RETURN TRUE;
-    EXCEPTION WHEN OTHERS THEN
-        RETURN FALSE;
-    END;
-END;
-$$ LANGUAGE plpgsql;
-
-
-ALTER TABLE ai_context 
-ADD CONSTRAINT check_embedding_format 
-CHECK (validate_embedding_format(embedding));
-
-
 
 
 -- Record this migration

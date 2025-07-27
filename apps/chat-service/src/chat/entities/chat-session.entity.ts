@@ -108,7 +108,7 @@ export class ChatSession {
     description:
       'Metadata about the session, such as setup completion and user type',
   })
-  @Column('json', { nullable: true })
+  @Column('json', { name: 'session_metadata', nullable: true })
   sessionMetadata: {
     setupComplete?: boolean;
     setupAt?: string;
