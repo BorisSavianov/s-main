@@ -86,41 +86,17 @@ export class AIService {
     );
   }
 
-  dot(a: number[], b: number[]): number {
-    return a.reduce((sum, val, i) => sum + val * b[i], 0);
-  }
-
-  norm(v: number[]): number {
-    return Math.sqrt(v.reduce((sum, val) => sum + val * val, 0));
-  }
-
   /**
    * Generate AI response to user message
    */
   async generateResponse(context: ChatContext): Promise<AIResponse> {
     try {
-      const a = await this.generateEmbedding(
-        'I have been struggling with sleep issues',
-      );
-      const b = await this.generateEmbedding(
-        "I just can't get over my sleep issues",
-      );
-
-      const cosineSimilarity =
-        this.dot(a!, b!) / (this.norm(a!) * this.norm(b!));
-      this.logger.debug('Cosine similarity:', cosineSimilarity.toFixed(4));
-
-      this.logger.log('1');
       await this.storeContext(context);
-      this.logger.log('2');
       const prompt = await this.buildPrompt(context);
-      this.logger.log('3');
       const ollamaResponse = await this.callOllama(prompt);
-      this.logger.log('4');
       const sentiment = await this.analyzeSentiment(context.userMessage);
-      this.logger.log('5');
       await this.queueBackgroundTasks(context, ollamaResponse);
-      this.logger.log('6');
+
       return {
         content: ollamaResponse.response.trim(),
         sentiment,
@@ -228,8 +204,7 @@ export class AIService {
         created_at,
         embedding,
         (embedding <=> $1::vector) as cosine_distance,
-        (embedding <-> $1::vector) as l2_distance,
-        (1 - (embedding <#> $1::vector)) as dot_similarity
+
       FROM ai_context
       WHERE session_id = $2
         AND context_type IN ('embedding', 'conversation', 'text')
@@ -239,23 +214,9 @@ export class AIService {
         [vectorLiteral, sessionId],
       );
 
-      // Log all distance types for debugging
-      allResults.forEach((row: any) => {
-        this.logger.debug(`Cosine distance: ${row.cosine_distance}`);
-        this.logger.debug(`L2 distance: ${row.l2_distance}`);
-        this.logger.debug(`Dot similarity: ${row.dot_similarity}`);
-      });
-
       // Use the most appropriate distance metric
       const processedResults = allResults.map((row: any) => {
-        // For cosine distance (0-2 range, 0 = identical)
         let similarity = Math.max(0, Math.min(1, 1 - row.cosine_distance / 2));
-
-        // Alternative: use dot product similarity if available
-        /*
-        if (row.dot_similarity !== null && row.dot_similarity >= 0) {
-          similarity = Math.max(0, Math.min(1, row.dot_similarity));
-        }*/
 
         const content =
           row.context_data?.text || row.context_data?.userMessage || '';
@@ -307,8 +268,6 @@ export class AIService {
         threshold,
       );
 
-      this.logger.log('vectorResults: ' + JSON.stringify(vectorResults));
-
       if (vectorResults.length > 0) {
         return vectorResults;
       }
@@ -318,12 +277,6 @@ export class AIService {
         'No vector results found, falling back to keyword search',
       );
 
-      this.logger.log(
-        'keywordMatches: ' +
-          JSON.stringify(
-            await this.findKeywordMatches(query, sessionId, limit),
-          ),
-      );
       return await this.findKeywordMatches(query, sessionId, limit);
     } catch (error) {
       this.logger.error(
@@ -913,9 +866,6 @@ Topics:`;
       context.userMessage,
       context.sessionId,
     );
-
-    this.logger.log('history: ' + JSON.stringify(recentHistory));
-    this.logger.log('semanticContext: ' + JSON.stringify(semanticContext));
 
     return `You are a supportive mental health AI assistant. You provide empathetic, helpful responses while being careful not to provide medical advice. Always encourage users to seek professional help for serious concerns.
 
