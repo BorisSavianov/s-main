@@ -20,23 +20,9 @@ export interface OllamaConfig {
   };
 }
 
-export interface OpenAIConfig {
-  apiKey?: string;
-  baseUrl?: string;
-  organization?: string;
-  models: {
-    chat: string;
-    embedding: string;
-    moderation: string;
-  };
-  maxTokens: number;
-  temperature: number;
-}
-
 export interface AIConfig {
-  provider: 'ollama' | 'openai' | 'anthropic';
+  provider: 'ollama' | 'anthropic';
   ollama: OllamaConfig;
-  openai: OpenAIConfig;
   features: {
     sentimentAnalysis: boolean;
     contentModeration: boolean;
@@ -64,9 +50,7 @@ export default registerAs('ai', (): AIConfig => {
   const isDevelopment = process.env.NODE_ENV === 'development';
 
   return {
-    provider:
-      (process.env.AI_PROVIDER as 'ollama' | 'openai' | 'anthropic') ||
-      'ollama',
+    provider: (process.env.AI_PROVIDER as 'ollama' | 'anthropic') || 'ollama',
 
     ollama: {
       baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
@@ -85,21 +69,6 @@ export default registerAs('ai', (): AIConfig => {
         max_tokens: parseInt(process.env.OLLAMA_MAX_TOKENS || '256', 10),
         stop: process.env.OLLAMA_STOP_TOKENS?.split(','),
       },
-    },
-
-    openai: {
-      apiKey: process.env.OPENAI_API_KEY,
-      baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-      organization: process.env.OPENAI_ORGANIZATION,
-      models: {
-        chat: process.env.OPENAI_CHAT_MODEL || 'gpt-3.5-turbo',
-        embedding:
-          process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-ada-002',
-        moderation:
-          process.env.OPENAI_MODERATION_MODEL || 'text-moderation-latest',
-      },
-      maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS || '1000', 10),
-      temperature: parseFloat(process.env.OPENAI_TEMPERATURE || '0.7'),
     },
 
     features: {
@@ -236,8 +205,8 @@ export const validateAIConfig = (config: any): AIConfig => {
   const errors: string[] = [];
 
   // Validate provider
-  if (!['ollama', 'openai', 'anthropic'].includes(config.provider)) {
-    errors.push('AI_PROVIDER must be one of: ollama, openai, anthropic');
+  if (!['ollama', 'anthropic'].includes(config.provider)) {
+    errors.push('AI_PROVIDER must be one of: ollama, anthropic');
   }
 
   // Validate Ollama configuration
@@ -250,11 +219,6 @@ export const validateAIConfig = (config: any): AIConfig => {
         'OLLAMA_DEFAULT_MODEL is required when using Ollama provider',
       );
     }
-  }
-
-  // Validate OpenAI configuration
-  if (config.provider === 'openai' && !config.openai.apiKey) {
-    errors.push('OPENAI_API_KEY is required when using OpenAI provider');
   }
 
   // Validate limits

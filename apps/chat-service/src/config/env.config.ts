@@ -18,7 +18,6 @@ export enum Environment {
 
 export enum AIProvider {
   OLLAMA = 'ollama',
-  OPENAI = 'openai',
   ANTHROPIC = 'anthropic',
 }
 
@@ -29,7 +28,7 @@ export class EnvironmentVariables {
 
   @IsNumber()
   @Type(() => Number)
-  PORT: number = 4002;
+  PORT_CHAT: number = 4002;
 
   @IsString()
   @IsOptional()
@@ -175,35 +174,6 @@ export class EnvironmentVariables {
   @Type(() => Number)
   OLLAMA_MAX_TOKENS: number = 256;
 
-  // OpenAI
-  @IsString()
-  @IsOptional()
-  OPENAI_API_KEY?: string;
-
-  @IsString()
-  OPENAI_BASE_URL: string = 'https://api.openai.com/v1';
-
-  @IsString()
-  @IsOptional()
-  OPENAI_ORGANIZATION?: string;
-
-  @IsString()
-  OPENAI_CHAT_MODEL: string = 'gpt-3.5-turbo';
-
-  @IsString()
-  OPENAI_EMBEDDING_MODEL: string = 'text-embedding-ada-002';
-
-  @IsString()
-  OPENAI_MODERATION_MODEL: string = 'text-moderation-latest';
-
-  @IsNumber()
-  @Type(() => Number)
-  OPENAI_MAX_TOKENS: number = 1000;
-
-  @IsNumber()
-  @Type(() => Number)
-  OPENAI_TEMPERATURE: number = 0.7;
-
   // AI Features
   @IsBoolean()
   @Transform(({ value }) => value !== 'false')
@@ -343,16 +313,6 @@ export function validate(config: Record<string, unknown>) {
       .join('\n');
 
     throw new Error(`Environment validation failed:\n${errorMessages}`);
-  }
-
-  // Custom validation logic
-  if (
-    validatedConfig.AI_PROVIDER === AIProvider.OPENAI &&
-    !validatedConfig.OPENAI_API_KEY
-  ) {
-    throw new Error(
-      'OPENAI_API_KEY is required when AI_PROVIDER is set to openai',
-    );
   }
 
   if (

@@ -66,20 +66,17 @@ CREATE TABLE ai_context (
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     context_data JSONB NOT NULL,
     context_type VARCHAR(50),
+    relevance_score DECIMAL(3, 2) DEFAULT 1.0,
     personality_traits JSONB,
+    metadata JSONB,
     conversation_history JSONB,
     embedding vector(768),
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMPTZ,
     UNIQUE(session_id, user_id)
 );
-
-ALTER TABLE ai_context
-ALTER COLUMN embedding TYPE vector(768) 
-USING embedding::vector;
-
-
-
 
 -- Message attachments table
 CREATE TABLE message_attachments (

@@ -199,18 +199,17 @@ export class AIService {
       // Try cosine distance first (should give values between 0-2)
       const allResults = await this.aiContextRepository.query(
         `
-      SELECT 
-        context_data,
-        created_at,
-        embedding,
-        (embedding <=> $1::vector) as cosine_distance,
-
-      FROM ai_context
-      WHERE session_id = $2
-        AND context_type IN ('embedding', 'conversation', 'text')
-        AND embedding IS NOT NULL
-      ORDER BY cosine_distance ASC
-      `,
+  SELECT 
+    context_data,
+    created_at,
+    embedding,
+    (embedding <=> $1::vector) as cosine_distance
+  FROM ai_context
+  WHERE session_id = $2
+    AND context_type IN ('embedding', 'conversation', 'text')
+    AND embedding IS NOT NULL
+  ORDER BY cosine_distance ASC
+  `,
         [vectorLiteral, sessionId],
       );
 

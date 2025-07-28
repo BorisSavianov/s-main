@@ -19,7 +19,7 @@ export class AppConfigService {
   }
 
   get port(): number {
-    return this.configService.get('PORT', { infer: true });
+    return this.configService.get('PORT_CHAT', { infer: true });
   }
 
   get frontendUrl(): string {
@@ -196,26 +196,6 @@ export class AppConfigService {
             infer: true,
           }),
         },
-      },
-      openai: {
-        apiKey: this.configService.get('OPENAI_API_KEY', { infer: true }),
-        baseUrl: this.configService.get('OPENAI_BASE_URL', { infer: true }),
-        organization: this.configService.get('OPENAI_ORGANIZATION', {
-          infer: true,
-        }),
-        models: {
-          chat: this.configService.get('OPENAI_CHAT_MODEL', { infer: true }),
-          embedding: this.configService.get('OPENAI_EMBEDDING_MODEL', {
-            infer: true,
-          }),
-          moderation: this.configService.get('OPENAI_MODERATION_MODEL', {
-            infer: true,
-          }),
-        },
-        maxTokens: this.configService.get('OPENAI_MAX_TOKENS', { infer: true }),
-        temperature: this.configService.get('OPENAI_TEMPERATURE', {
-          infer: true,
-        }),
       },
       features: {
         sentimentAnalysis: this.configService.get('AI_SENTIMENT_ANALYSIS', {
