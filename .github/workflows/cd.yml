@@ -2,77 +2,278 @@
 
 # on:
 #   push:
-#     branches: [ main ]
+#     branches: [main]
 #     tags:
 #       - 'v*'
+#   workflow_run:
+#     workflows: ["CI"]
+#     types:
+#       - completed
+#     branches: [main]
 
 # env:
 #   REGISTRY: ghcr.io
 #   IMAGE_NAME: ${{ github.repository }}
+#   NODE_VERSION: '20.x'
 
 # jobs:
+#   # Only run if CI passed successfully
+#   check-ci-status:
+#     runs-on: ubuntu-latest
+#     if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'push'
+#     outputs:
+#       should-deploy: ${{ steps.check.outputs.result }}
+#     steps:
+#       - id: check
+#         run: echo "result=true" >> $GITHUB_OUTPUT
+
+#   # Build and push Docker images
 #   build-and-push:
 #     runs-on: ubuntu-latest
+#     needs: check-ci-status
+#     if: needs.check-ci-status.outputs.should-deploy == 'true'
 #     permissions:
 #       contents: read
 #       packages: write
 
+#     strategy:
+#       matrix:
+#         service:
+#           - { name: 'auth-service', dockerfile: 'Dockerfile-auth', context: '.' }
+#           - { name: 'chat-service', dockerfile: 'Dockerfile-chat', context: '.' }
+#           - { name: 'user-service', dockerfile: 'Dockerfile', context: './apps/user-service' }
+#           - { name: 'scheduler-service', dockerfile: 'Dockerfile', context: './apps/scheduler-service' }
+#           - { name: 'video-service', dockerfile: 'Dockerfile', context: './apps/video-service' }
+#           - { name: 'mood-service', dockerfile: 'Dockerfile', context: './apps/mood-service' }
+#           - { name: 'notification-service', dockerfile: 'Dockerfile', context: './apps/notification-service' }
+#           - { name: 'frontend', dockerfile: 'Dockerfile', context: './frontend' }
+
 #     steps:
-#     - name: Checkout
-#       uses: actions/checkout@v4
+#       - name: Checkout
+#         uses: actions/checkout@v4
 
-#     - name: Set up Node.js
-#       uses: actions/setup-node@v4
-#       with:
-#         node-version: 20.x
-#         cache: 'npm'
+#       - name: Set up Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: ${{ env.NODE_VERSION }}
+#           cache: 'npm'
 
-#     - name: Install dependencies
-#       run: npm ci
+#       - name: Install dependencies
+#         run: npm ci
 
-#     - name: Build project
-#       run: npm run build
+#       - name: Build project
+#         run: npm run build
 
-#     - name: Set up Docker Buildx
-#       uses: docker/setup-buildx-action@v3
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v3
 
-#     - name: Log in to Container Registry
-#       uses: docker/login-action@v3
-#       with:
-#         registry: ${{ env.REGISTRY }}
-#         username: ${{ github.actor }}
-#         password: ${{ secrets.GITHUB_TOKEN }}
+#       - name: Log in to Container Registry
+#         uses: docker/login-action@v3
+#         with:
+#           registry: ${{ env.REGISTRY }}
+#           username: ${{ github.actor }}
+#           password: ${{ secrets.GITHUB_TOKEN }}
 
-#     - name: Extract metadata
-#       id: meta
-#       uses: docker/metadata-action@v5
-#       with:
-#         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-#         tags: |
-#           type=ref,event=branch
-#           type=semver,pattern={{version}}
-#           type=semver,pattern={{major}}.{{minor}}
-#           type=sha
+#       - name: Extract metadata for ${{ matrix.service.name }}
+#         id: meta
+#         uses: docker/metadata-action@v5
+#         with:
+#           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service.name }}
+#           tags: |
+#             type=ref,event=branch
+#             type=semver,pattern={{version}}
+#             type=semver,pattern={{major}}.{{minor}}
+#             type=sha,prefix={{branch}}-
+#             type=raw,value=latest,enable={{is_default_branch}}
 
-#     - name: Build and push Docker image
-#       uses: docker/build-push-action@v5
-#       with:
-#         context: .
-#         push: true
-#         tags: ${{ steps.meta.outputs.tags }}
-#         labels: ${{ steps.meta.outputs.labels }}
-#         cache-from: type=gha
-#         cache-to: type=gha,mode=max
+#       - name: Build and push ${{ matrix.service.name }}
+#         uses: docker/build-push-action@v5
+#         with:
+#           context: ${{ matrix.service.context }}
+#           dockerfile: ${{ matrix.service.dockerfile }}
+#           push: true
+#           tags: ${{ steps.meta.outputs.tags }}
+#           labels: ${{ steps.meta.outputs.labels }}
+#           cache-from: type=gha,scope=${{ matrix.service.name }}
+#           cache-to: type=gha,mode=max,scope=${{ matrix.service.name }}
+#           platforms: linux/amd64,linux/arm64
 
-#   deploy:
+#   # Deploy to staging environment
+#   deploy-staging:
 #     runs-on: ubuntu-latest
 #     needs: build-and-push
 #     if: github.ref == 'refs/heads/main'
+#     environment: staging
+
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v4
+
+#       - name: Setup SSH key
+#         uses: webfactory/ssh-agent@v0.7.0
+#         with:
+#           ssh-private-key: ${{ secrets.STAGING_SSH_KEY }}
+
+#       - name: Create deployment directory
+#         run: |
+#           ssh -o StrictHostKeyChecking=no ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} '
+#             mkdir -p /opt/serenity-space
+#             cd /opt/serenity-space
+#           '
+
+#       - name: Copy infrastructure files to staging
+#         run: |
+#           scp -r -o StrictHostKeyChecking=no infrastructure/ ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}:/opt/serenity-space/
+#           scp -o StrictHostKeyChecking=no docker-compose.yml ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}:/opt/serenity-space/
+#           scp -o StrictHostKeyChecking=no .env.staging ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}:/opt/serenity-space/.env
+
+#       - name: Deploy to staging with Nginx
+#         run: |
+#           ssh -o StrictHostKeyChecking=no ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} '
+#             cd /opt/serenity-space
+
+#             # Set environment variables
+#             export DOCKER_REGISTRY=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+#             export IMAGE_TAG=${{ github.sha }}
+#             export ENVIRONMENT=staging
+
+#             # Stop existing services
+#             docker-compose down --remove-orphans
+
+#             # Pull latest images
+#             docker-compose pull
+
+#             # Start infrastructure services first
+#             docker-compose up -d postgres redis rabbitmq elasticsearch
+
+#             # Wait for infrastructure to be ready
+#             sleep 30
+
+#             # Start monitoring services
+#             docker-compose up -d prometheus grafana node-exporter
+
+#             # Start application services
+#             docker-compose up -d auth-service user-service chat-service scheduler-service video-service mood-service notification-service
+
+#             # Wait for services to be ready
+#             sleep 60
+
+#             # Start frontend
+#             docker-compose up -d frontend
+
+#             # Finally start nginx (reverse proxy)
+#             docker-compose up -d nginx
+
+#             # Start admin tools
+#             docker-compose up -d adminer redis-commander kibana
+
+#             # Verify deployment
+#             sleep 30
+#             curl -f http://localhost/health || exit 1
+#             curl -f http://localhost:8080/api/v1/auth/health || exit 1
+
+#             # Clean up old images
+#             docker image prune -f
+
+#             echo "✅ Staging deployment completed successfully"
+#           '
+
+#       - name: Run health checks
+#         run: |
+#           ssh -o StrictHostKeyChecking=no ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} '
+#             cd /opt/serenity-space
+
+#             # Check all services are running
+#             docker-compose ps
+
+#             # Test API endpoints
+#             curl -f http://localhost:8080/api/v1/auth/health
+#             curl -f http://localhost:8080/api/v1/chat/health
+#             curl -f http://localhost/health
+
+#             # Check monitoring endpoints
+#             curl -f http://localhost:9090/-/healthy  # Prometheus
+#             curl -f http://localhost:3001/api/health  # Grafana
+
+#             echo "✅ All health checks passed"
+#           '
+
+#   # Deploy to production environment
+#   deploy-production:
+#     runs-on: ubuntu-latest
+#     needs: [build-and-push, deploy-staging]
+#     if: startsWith(github.ref, 'refs/tags/v')
 #     environment: production
 
 #     steps:
-#     - name: Deploy to production
-#       run: |
-#         echo "Deploy step - configure your deployment strategy here"
-#         echo "Example: SSH to server, pull new image, restart containers"
-#         echo "Or integrate with cloud services like AWS ECS, Azure Container Instances, etc."
+#       - name: Checkout
+#         uses: actions/checkout@v4
+
+#       - name: Setup SSH key
+#         uses: webfactory/ssh-agent@v0.7.0
+#         with:
+#           ssh-private-key: ${{ secrets.PRODUCTION_SSH_KEY }}
+
+#       - name: Create deployment directory
+#         run: |
+#           ssh -o StrictHostKeyChecking=no ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} '
+#             mkdir -p /opt/serenity-space
+#             cd /opt/serenity-space
+#           '
+
+#       - name: Copy infrastructure files to production
+#         run: |
+#           scp -r -o StrictHostKeyChecking=no infrastructure/ ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}:/opt/serenity-space/
+#           scp -o StrictHostKeyChecking=no docker-compose.yml ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}:/opt/serenity-space/
+#           scp -o StrictHostKeyChecking=no .env.production ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}:/opt/serenity-space/.env
+
+#       - name: Deploy to production with zero-downtime
+#         run: |
+#           ssh -o StrictHostKeyChecking=no ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} '
+#             cd /opt/serenity-space
+
+#             # Set environment variables
+#             export DOCKER_REGISTRY=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+#             export IMAGE_TAG=${{ github.ref_name }}
+#             export ENVIRONMENT=production
+
+#             # Create backup
+#             docker-compose exec postgres pg_dump -U postgres mentalhealth > backup_$(date +%Y%m%d_%H%M%S).sql
+
+#             # Pull latest images
+#             docker-compose pull
+
+#             # Rolling update strategy for zero downtime
+#             for service in auth-service user-service chat-service scheduler-service video-service mood-service notification-service; do
+#               echo "Updating $service..."
+#               docker-compose up -d --no-deps $service
+#               sleep 30
+
+#               # Health check
+#               if ! curl -f http://localhost:8080/api/v1/${service%-service}/health; then
+#                 echo "Health check failed for $service, rolling back..."
+#                 docker-compose restart $service
+#                 exit 1
+#               fi
+#             done
+
+#             # Update frontend
+#             docker-compose up -d --no-deps frontend
+#             sleep 30
+
+#             # Reload nginx configuration (zero downtime)
+#             docker-compose exec nginx nginx -s reload
+
+#             # Final health checks
+#             curl -f http://localhost/health || exit 1
+#             curl -f http://localhost:8080/api/v1/auth/health || exit 1
+
+#             # Clean up old images
+#             docker image prune -f
+
+#             echo "✅ Production deployment completed successfully"
+#           '
+
+#       - name: Run comprehensive health checks
+#         run: |
+#           ssh -o StrictHostKeyChecking=no ${{ secrets.PRODUCTION_
