@@ -1,6 +1,6 @@
 // apps/chat-service/src/main.ts
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe, Logger, RequestMethod } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AppModule } from './chat-service.module';
@@ -37,7 +37,9 @@ async function bootstrap() {
   app.useWebSocketAdapter(new IoAdapter(app));
 
   // API versioning
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix('api/v1', {
+    exclude: [{ path: 'metrics', method: RequestMethod.GET }],
+  });
 
   // Swagger documentation
   const config = new DocumentBuilder()

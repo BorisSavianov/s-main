@@ -21,6 +21,6 @@ import envConfig, { validate } from './env.config';
     }),
   ],
   providers: [AppConfigService],
-  exports: [AppConfigService], // export it here
+  exports: [AppConfigService],
 })
 export class AppConfigModule {}

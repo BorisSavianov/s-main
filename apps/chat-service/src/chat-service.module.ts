@@ -28,11 +28,15 @@ import { WebSocketModule } from './websocket/websocket.module';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { LoggerOptions, LogLevel } from 'typeorm';
 import { AppConfigModule } from './config/config.module';
+import {
+  PrometheusController,
+  PrometheusModule,
+} from '@willsoto/nestjs-prometheus';
 
 @Module({
   imports: [
     AppConfigModule,
-
+    PrometheusModule.register(),
     // Database configuration
     TypeOrmModule.forRootAsync({
       imports: [AppConfigModule],
@@ -163,6 +167,7 @@ import { AppConfigModule } from './config/config.module';
     SearchModule,
     WebSocketModule,
   ],
+  controllers: [PrometheusController],
   providers: [
     // Register AppConfigService as a provider
     AppConfigService,

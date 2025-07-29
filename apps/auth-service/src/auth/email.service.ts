@@ -23,12 +23,12 @@ export class EmailService {
     console.log('Initializing email transporter...');
     const emailConfig = {
       // Removed the fixed service property for proper host resolution
-      host: this.configService.get<string>('SMTP_HOST') ?? 'smtp.gmail.com',
-      port: this.configService.get<number>('SMTP_PORT', 587),
-      secure: this.configService.get<boolean>('SMTP_SECURE', false),
+      host: this.configService.get<string>('MAIL_HOST') ?? 'smtp.gmail.com',
+      port: this.configService.get<number>('MAIL_PORT', 456),
+      secure: this.configService.get<boolean>('MAIL_SECURE', true),
       auth: {
-        user: this.configService.get<string>('SMTP_USER'),
-        pass: this.configService.get<string>('SMTP_PASS'),
+        user: this.configService.get<string>('MAIL_USER'),
+        pass: this.configService.get<string>('MAIL_PASS'),
       },
     };
     console.log('Email configuration:', emailConfig);
@@ -47,7 +47,11 @@ export class EmailService {
   async sendEmail(to: string, template: EmailTemplate): Promise<void> {
     try {
       const mailOptions = {
-        from: this.configService.get<string>('SMTP_FROM'),
+        from:
+          this.configService.get<string>('MAIL_FROM_NAME') +
+          ' ' +
+          ' <' +
+          this.configService.get<string>('MAIL_FROM_ADDRESS'),
         to,
         subject: template.subject,
         html: template.html,

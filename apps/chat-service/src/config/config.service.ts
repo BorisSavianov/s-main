@@ -328,6 +328,10 @@ export class AppConfigService {
     };
   }
 
+  get<T = any>(key: string): T {
+    return this.configService.get(key as any);
+  }
+
   // CORS Configuration
   get corsConfig() {
     return {

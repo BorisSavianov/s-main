@@ -6,16 +6,15 @@ services:
     image: ankane/pgvector:latest
     container_name: serenity_space_postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: mentalhealth2024
-      POSTGRES_DB: mentalhealth
-      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --lc-collate=C --lc-ctype=C'
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_INITDB_ARGS: ${POSTGRES_INITDB_ARGS}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infrastructure/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh
       - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./infrastructure/postgres/migrations:/docker-entrypoint-initdb.d/migrations
-
     ports:
       - '5432:5432'
     healthcheck:
@@ -54,8 +53,8 @@ services:
     ports:
       - '11434:11434'
     environment:
-      - OLLAMA_KEEP_ALIVE=24h
-      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE}
+      - OLLAMA_HOST=${OLLAMA_HOST}
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:11434/api/tags']
       interval: 30s
@@ -71,9 +70,9 @@ services:
     image: rabbitmq:3-management-alpine
     container_name: serenity_space_rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: mentalhealth
-      RABBITMQ_DEFAULT_PASS: mentalhealth2024
-      RABBITMQ_DEFAULT_VHOST: /
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
       - ./infrastructure/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins
@@ -96,23 +95,24 @@ services:
       dockerfile: Dockerfile-auth
     container_name: serenity_space_auth
     environment:
-      - NODE_ENV=development
-      - PORT=4000
-      - DATABASE_URL=postgresql://postgres:mentalhealth2024@postgres:5432/mentalhealth
-      - REDIS_URL=redis://:mentalhealth2024@redis:6379
-      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
-      - JWT_EXPIRES_IN=24h
-      - BCRYPT_ROUNDS=12
-      - GOOGLE_CLIENT_ID=265701614421-9qahv7sm5ib3fqe5m904g8ql2tdf5d9g.apps.googleusercontent.com
-      - GOOGLE_CLIENT_SECRET=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
-      - GOOGLE_CALLBACK_URL=http://localhost:4000/auth/google/callback
-      - SMTP_HOST=smtp.gmail.com
-      - SMTP_PORT=465
-      - SMTP_SECURE=true
-      - SMTP_USER=bsavyanov@gmail.com
-      - SMTP_PASS=mjuw vofq dljx cyud
-      - SMTP_FROM="SerenitySpace <bsavyanov@gmail.com>"
-      - FRONTEND_URL=http://localhost:4000
+      - NODE_ENV=${NODE_ENV}
+      - PORT=${PORT_AUTH}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      - BCRYPT_ROUNDS=${BCRYPT_ROUNDS}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL}
+      - MAIL_HOST=${MAIL_HOST}
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_SECURE=${MAIL_SECURE}
+      - MAIL_USER=${MAIL_USER}
+      - MAIL_PASS=${MAIL_PASS}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME}
+      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
+      - FRONTEND_URL=${FRONTEND_URL}
 
     ports:
       - '4000:4000'
@@ -509,6 +509,8 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning
+      - ./infrastructure/grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml
+      - ./infrastructure/grafana/dashgboards:/etc/grafana/provisioning/dashboards
     ports:
       - '3001:3000'
     depends_on:

@@ -243,15 +243,14 @@ export class EnvironmentVariables {
 
   // Email
   @IsString()
-  MAIL_HOST: string = 'localhost';
+  MAIL_HOST: string;
 
   @IsNumber()
   @Type(() => Number)
-  MAIL_PORT: number = 587;
+  MAIL_PORT: number;
 
   @IsBoolean()
-  @Transform(({ value }) => value === 'true')
-  MAIL_SECURE: boolean = false;
+  MAIL_SECURE: boolean = true;
 
   @IsString()
   @IsOptional()
@@ -262,16 +261,16 @@ export class EnvironmentVariables {
   MAIL_PASS?: string;
 
   @IsString()
-  MAIL_FROM_NAME: string = 'Chat Service';
+  MAIL_FROM_NAME: string;
 
   @IsString()
-  MAIL_FROM_ADDRESS: string = 'noreply@example.com';
+  MAIL_FROM_ADDRESS: string;
 
   @IsString()
-  ADMIN_EMAIL: string = 'admin@example.com';
+  ADMIN_EMAIL: string;
 
   @IsString()
-  CRISIS_TEAM_EMAIL: string = 'crisis@example.com';
+  CRISIS_TEAM_EMAIL: string;
 
   // AI Prompts
   @IsString()

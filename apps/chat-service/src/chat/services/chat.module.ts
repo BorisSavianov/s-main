@@ -24,9 +24,7 @@ import { SessionService } from './session.service';
 import { MessageService } from './message.service';
 import { AIService } from '../../ai/ai.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AiContext } from '../../ai/entities/ai-context.entity';
-import { ChatEventHandlersService } from './chat-event-handlers.service';
 
 @Module({
   imports: [
@@ -50,23 +48,22 @@ import { ChatEventHandlersService } from './chat-event-handlers.service';
       name: 'chat-processing',
     }),
     HttpModule,
-    EventEmitterModule.forRoot(),
     // Add MailerModule configuration
     MailerModule.forRoot({
       transport: {
-        host: process.env.MAIL_HOST || 'localhost',
-        port: parseInt(process.env.MAIL_PORT!) || 587,
-        secure: process.env.MAIL_SECURE === 'true', // true for 465, false for other ports
+        host: process.env.MAIL_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.MAIL_PORT!) || 465,
+        secure: process.env.MAIL_SECURE || true, // true for 465, false for other ports
         auth: {
           user: process.env.MAIL_USER,
           pass: process.env.MAIL_PASS,
         },
       },
       defaults: {
-        from: `"${process.env.MAIL_FROM_NAME || 'Chat Service'}" <${process.env.MAIL_FROM_ADDRESS || 'bsavyanov@gmail.com'}>`,
+        from: `"${process.env.MAIL_FROM_NAME || 'Chat Service'}" <${process.env.MAIL_FROM_ADDRESS || 'noreply@example.com'}>`,
       },
       template: {
-        dir: join(__dirname, 'templates/email'),
+        dir: join(__dirname, '../../templates/email'),
         adapter: new HandlebarsAdapter(),
         options: {
           strict: true,
@@ -81,7 +78,7 @@ import { ChatEventHandlersService } from './chat-event-handlers.service';
     MessageService,
     ChatProcessor,
     AIService,
-    ChatEventHandlersService,
+    EventEmitter2,
   ],
   exports: [
     ChatService,
@@ -89,7 +86,7 @@ import { ChatEventHandlersService } from './chat-event-handlers.service';
     MessageService,
     ChatProcessor,
     AIService,
-    ChatEventHandlersService,
+    EventEmitter2,
   ],
 })
 export class ChatModule {}
