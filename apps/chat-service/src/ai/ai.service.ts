@@ -334,7 +334,7 @@ export class AIService {
           session_id,
           COUNT(*) as message_count,
           MAX(created_at) as last_activity,
-          AVG(embedding <#> $1::vector) as avg_distance
+          AVG(embedding <#> $1::vector) as avg_distance,
         FROM ai_context
         WHERE session_id != $2
           AND context_type = 'embedding'

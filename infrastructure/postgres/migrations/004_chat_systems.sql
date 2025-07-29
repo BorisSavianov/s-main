@@ -35,7 +35,7 @@ CREATE TABLE chat_messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     session_id UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
     sender_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    sender_type VARCHAR(20) NOT NULL CHECK (sender_type IN ('user', 'ai', 'counselor')),
+    sender_type VARCHAR(20) NOT NULL CHECK (sender_type IN ('user', 'ai', 'counselor', 'system')),
     content TEXT NOT NULL,
     content_type VARCHAR(20) DEFAULT 'text',
     sentiment_score DECIMAL(3,2),

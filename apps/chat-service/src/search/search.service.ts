@@ -685,7 +685,6 @@ export class SearchService {
         createdAt: message.createdAt,
         updatedAt: message.updatedAt,
       };
-
       // Generate and add embedding if requested and not already present
       if (generateEmbedding && message.content && !message.embedding) {
         const embedding = await this.aiService.generateEmbedding(
@@ -693,10 +692,13 @@ export class SearchService {
         );
         if (embedding) {
           document.embedding = embedding;
+          // Manually format the array into a vector literal string
+          const embeddingString = `[${embedding.join(',')}]`;
 
-          // Update the message record with the embedding
+          // Update the message record with the correctly formatted embedding
           await this.messageRepository.update(message.id, {
-            embedding: embedding as any,
+            // Use a function to pass the raw string to the query builder
+            embedding: () => `'${embeddingString}'`,
           });
         }
       } else if (message.embedding) {
@@ -712,10 +714,8 @@ export class SearchService {
         id: message.id,
         body: document,
       });
-
       // Update search suggestions
       await this.updateSuggestions(message.content, message.sessionId);
-
       this.logger.debug(`Message ${message.id} indexed successfully`);
     } catch (error) {
       this.logger.error(

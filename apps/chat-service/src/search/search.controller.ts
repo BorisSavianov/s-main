@@ -26,7 +26,7 @@ import {
 import { ThrottlerGuard } from '@nestjs/throttler';
 
 import { SearchService } from './search.service';
-import { SemanticSearchResultDto } from '../ai/ai.controler';
+import { SemanticSearchResultDto } from '../ai/dto/ai.dto';
 
 // DTOs for request validation
 class SearchMessageDto {

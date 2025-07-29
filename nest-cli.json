@@ -5,7 +5,8 @@
   "compilerOptions": {
     "deleteOutDir": true,
     "webpack": true,
-    "tsConfigPath": "apps/serenity-space/tsconfig.app.json"
+    "tsConfigPath": "apps/serenity-space/tsconfig.app.json",
+    "assets": ["**/*.hbs"]
   },
   "monorepo": true,
   "root": "apps/serenity-space",

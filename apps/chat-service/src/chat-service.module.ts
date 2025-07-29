@@ -174,19 +174,5 @@ import { AppConfigModule } from './config/config.module';
   ],
 })
 export class AppModule {
-  constructor(private appConfigService: AppConfigService) {
-    // Log important configuration on startup (non-sensitive info only)
-    console.log('Chat Service Configuration:');
-    console.log(`- Environment: ${this.appConfigService.nodeEnv}`);
-    console.log(`- Port: ${this.appConfigService.port}`);
-    console.log(`- AI Provider: ${this.appConfigService.aiConfig.provider}`);
-    console.log(`- Database: ${this.appConfigService.databaseConfig.type}`);
-
-    const redisConfig = this.appConfigService.redisConfig;
-    if ('options' in redisConfig) {
-      console.log(`- Redis Host: ${redisConfig.options.host}`);
-    } else {
-      console.log(`- Redis: Connected via URL`);
-    }
-  }
+  constructor(private appConfigService: AppConfigService) {}
 }

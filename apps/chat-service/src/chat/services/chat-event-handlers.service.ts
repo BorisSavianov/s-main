@@ -59,7 +59,9 @@ export class ChatEventHandlersService {
     private aiQueue: Queue,
     private aiService: AIService,
     private eventEmitter: EventEmitter2,
-  ) {}
+  ) {
+    this.logger.log('ChatEventHandlersService initialized');
+  }
 
   @OnEvent('session.created')
   async handleSessionCreated(event: SessionCreatedEvent) {
@@ -267,7 +269,7 @@ export class ChatEventHandlersService {
             flagType: event.flagType,
           },
           {
-            priority: 10, // Highest priority
+            priority: 20, // Highest priority
             attempts: 1,
           },
         );

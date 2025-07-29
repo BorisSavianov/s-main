@@ -173,13 +173,17 @@ services:
       - REDIS_URL=${REDIS_URL}
       - RABBITMQ_URL=${RABBITMQ_URL}
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
       - MAIL_HOST=${MAIL_HOST}
       - MAIL_PORT=${MAIL_PORT}
       - MAIL_SECURE=${MAIL_SECURE}
-      - SMTP_USER=${SMTP_USER}
-      - SMTP_PASS=${SMTP_PASS}
+      - MAIL_USER=${MAIL_USER}
+      - MAIL_PASS=${MAIL_PASS}
       - MAIL_FROM_NAME=${MAIL_FROM_NAME}
       - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
+      - CRISIS_TEAM_EMAIL=${CRISIS_TEAM_EMAIL}
       - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
@@ -284,8 +288,6 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy

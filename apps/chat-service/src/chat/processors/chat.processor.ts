@@ -447,7 +447,7 @@ Your life has value and help is available. Please don't hesitate to reach out.`,
   }): Promise<void> {
     try {
       await this.mailerService.sendMail({
-        to: process.env.ADMIN_EMAIL || 'admin@example.com',
+        to: process.env.ADMIN_EMAIL || 'bsavyanov@gmail.com',
         subject: `[${notification.severity.toUpperCase()}] Chat Service Alert`,
         template: 'admin-notification',
         context: notification,
@@ -465,7 +465,7 @@ Your life has value and help is available. Please don't hesitate to reach out.`,
   }): Promise<void> {
     try {
       await this.mailerService.sendMail({
-        to: process.env.CRISIS_TEAM_EMAIL || 'crisis@example.com',
+        to: process.env.CRISIS_TEAM_EMAIL || 'bsavyanov@gmail.com',
         subject: '🚨 URGENT - Crisis Intervention Required',
         template: 'crisis-alert',
         context: alert,

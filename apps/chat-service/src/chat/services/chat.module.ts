@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
 import { HttpModule } from '@nestjs/axios';
-import { MailerModule } from '@nestjs-modules/mailer';
+import { MailerModule, MailerService } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { join } from 'path';
 
@@ -24,7 +24,9 @@ import { SessionService } from './session.service';
 import { MessageService } from './message.service';
 import { AIService } from '../../ai/ai.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AiContext } from '../../ai/entities/ai-context.entity';
+import { ChatEventHandlersService } from './chat-event-handlers.service';
 
 @Module({
   imports: [
@@ -48,6 +50,7 @@ import { AiContext } from '../../ai/entities/ai-context.entity';
       name: 'chat-processing',
     }),
     HttpModule,
+    EventEmitterModule.forRoot(),
     // Add MailerModule configuration
     MailerModule.forRoot({
       transport: {
@@ -60,10 +63,10 @@ import { AiContext } from '../../ai/entities/ai-context.entity';
         },
       },
       defaults: {
-        from: `"${process.env.MAIL_FROM_NAME || 'Chat Service'}" <${process.env.MAIL_FROM_ADDRESS || 'noreply@example.com'}>`,
+        from: `"${process.env.MAIL_FROM_NAME || 'Chat Service'}" <${process.env.MAIL_FROM_ADDRESS || 'bsavyanov@gmail.com'}>`,
       },
       template: {
-        dir: join(__dirname, '../../templates/email'),
+        dir: join(__dirname, 'templates/email'),
         adapter: new HandlebarsAdapter(),
         options: {
           strict: true,
@@ -78,8 +81,7 @@ import { AiContext } from '../../ai/entities/ai-context.entity';
     MessageService,
     ChatProcessor,
     AIService,
-    // Remove MailerService from providers - it's provided by MailerModule
-    EventEmitter2,
+    ChatEventHandlersService,
   ],
   exports: [
     ChatService,
@@ -87,8 +89,7 @@ import { AiContext } from '../../ai/entities/ai-context.entity';
     MessageService,
     ChatProcessor,
     AIService,
-    // Remove MailerService from exports - import MailerService where needed
-    EventEmitter2,
+    ChatEventHandlersService,
   ],
 })
 export class ChatModule {}

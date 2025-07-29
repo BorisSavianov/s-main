@@ -415,9 +415,5 @@ Recommendations:`;
     } else {
       this.logger.log(`- Redis: ${redis.url}`);
     }
-
-    if (this.isDevelopment) {
-      this.logger.debug('Development mode - additional logging enabled');
-    }
   }
 }
