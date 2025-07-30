@@ -14,6 +14,7 @@ import {
   ParseBoolPipe,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -27,6 +28,14 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 
 import { SearchService } from './search.service';
 import { SemanticSearchResultDto } from '../ai/dto/ai.dto';
+
+// Import guards and decorators
+import { JwtAuthGuard } from '../../../auth-service/src/auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../auth-service/src/auth/guards/roles.guard';
+import { Roles } from '../../../auth-service/src/auth/decorators/roles.decorator';
+import { GetUser } from '../../../auth-service/src/auth/decorators/get-user.decorator';
+import { Public } from '../../../auth-service/src/auth/decorators/public.decorator';
+import { UserRole } from '../../../auth-service/src/database/entities/user.entity';
 
 // DTOs for request validation
 class SearchMessageDto {
@@ -60,11 +69,14 @@ class HybridSearchDto {
 
 @Controller('search')
 @ApiTags('search')
-@UseGuards(ThrottlerGuard) // Rate limiting
+@UseGuards(JwtAuthGuard, ThrottlerGuard) // Apply global auth and rate limiting
 export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 
   @Get('messages')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.USER, UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Search chat messages with advanced filtering',
     description:
@@ -128,6 +140,7 @@ export class SearchController {
     description: 'Search results returned successfully',
   })
   @ApiResponse({ status: 400, description: 'Invalid search parameters' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
   @ApiResponse({ status: 429, description: 'Too many requests' })
   async searchMessages(
     @Query('q') query?: string,
@@ -143,6 +156,7 @@ export class SearchController {
     includeHighlights?: boolean,
     @Query('includeFacets', new ParseBoolPipe({ optional: true }))
     includeFacets?: boolean,
+    @GetUser() currentUser?: any,
   ) {
     // Validate parameters
     if (limit && (limit < 1 || limit > 100)) {
@@ -159,6 +173,16 @@ export class SearchController {
 
     if (endDate && isNaN(Date.parse(endDate))) {
       throw new BadRequestException('Invalid end date format');
+    }
+
+    // Apply access control based on user role
+    if (currentUser.role === UserRole.USER) {
+      // Users can only search their own messages
+      if (userId && userId !== currentUser.id) {
+        throw new ForbiddenException('Cannot search messages from other users');
+      }
+      // Force userId to current user if not provided
+      userId = currentUser.id;
     }
 
     const searchQuery = {
@@ -184,11 +208,15 @@ export class SearchController {
         searchType: 'text',
         timestamp: new Date().toISOString(),
         executionTime: results.took,
+        userRole: currentUser.role,
       },
     };
   }
 
   @Get('semantic')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Semantic search using vector embeddings',
     description: 'Search for semantically similar messages using AI embeddings',
@@ -213,11 +241,17 @@ export class SearchController {
   })
   @ApiResponse({ status: 200, description: 'Semantic search results returned' })
   @ApiResponse({ status: 400, description: 'Invalid search parameters' })
+  @ApiResponse({
+    status: 403,
+    description: 'Counselor or admin access required',
+  })
+  @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   async semanticSearch(
     @Query('q') query: string,
     @Query('sessionId') sessionId?: string,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
     @Query('threshold') threshold?: number,
+    @GetUser() currentUser?: any,
   ) {
     if (!query || query.trim().length === 0) {
       throw new BadRequestException('Search query is required');
@@ -245,11 +279,15 @@ export class SearchController {
         searchType: 'semantic',
         timestamp: new Date().toISOString(),
         threshold: threshold || 0.7,
+        userRole: currentUser.role,
       },
     };
   }
 
   @Get('hybrid')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Hybrid search combining text and semantic search',
     description:
@@ -281,12 +319,18 @@ export class SearchController {
   })
   @ApiResponse({ status: 200, description: 'Hybrid search results returned' })
   @ApiResponse({ status: 400, description: 'Invalid search parameters' })
+  @ApiResponse({
+    status: 403,
+    description: 'Counselor or admin access required',
+  })
+  @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   async hybridSearch(
     @Query('q') query: string,
     @Query('sessionId') sessionId?: string,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
     @Query('textWeight') textWeight?: number,
     @Query('semanticWeight') semanticWeight?: number,
+    @GetUser() currentUser?: any,
   ) {
     if (!query || query.trim().length === 0) {
       throw new BadRequestException('Search query is required');
@@ -325,11 +369,15 @@ export class SearchController {
         textWeight: tWeight,
         semanticWeight: sWeight,
         timestamp: new Date().toISOString(),
+        userRole: currentUser.role,
       },
     };
   }
 
   @Get('suggestions')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.USER, UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get search suggestions for autocomplete',
     description:
@@ -356,10 +404,13 @@ export class SearchController {
     description: 'Suggestions returned successfully',
   })
   @ApiResponse({ status: 400, description: 'Invalid parameters' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   async getSuggestions(
     @Query('prefix') prefix: string,
     @Query('sessionId') sessionId?: string,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @GetUser() currentUser?: any,
   ) {
     if (!prefix || prefix.trim().length < 2) {
       throw new BadRequestException(
@@ -389,6 +440,9 @@ export class SearchController {
   }
 
   @Get('analytics')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get comprehensive search analytics',
     description:
@@ -414,10 +468,15 @@ export class SearchController {
     description: 'Analytics data returned successfully',
   })
   @ApiResponse({ status: 400, description: 'Invalid date parameters' })
+  @ApiResponse({
+    status: 403,
+    description: 'Counselor or admin access required',
+  })
   async getAnalytics(
     @Query('sessionId') sessionId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @GetUser() currentUser?: any,
   ) {
     if (startDate && isNaN(Date.parse(startDate))) {
       throw new BadRequestException('Invalid start date format');
@@ -443,17 +502,22 @@ export class SearchController {
           endDate,
         },
         timestamp: new Date().toISOString(),
+        userRole: currentUser.role,
       },
     };
   }
 
   @Get('performance')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get search service performance metrics',
     description: 'Retrieve performance metrics for monitoring and optimization',
   })
   @ApiResponse({ status: 200, description: 'Performance metrics returned' })
-  async getPerformanceMetrics() {
+  @ApiResponse({ status: 403, description: 'Admin access required' })
+  async getPerformanceMetrics(@GetUser() currentUser?: any) {
     const metrics = await this.searchService.getPerformanceMetrics();
 
     return {
@@ -464,12 +528,19 @@ export class SearchController {
   }
 
   @Get('stats')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get search usage statistics',
     description: 'Get aggregated statistics about search usage patterns',
   })
   @ApiResponse({ status: 200, description: 'Search statistics returned' })
-  async getSearchStats() {
+  @ApiResponse({
+    status: 403,
+    description: 'Counselor or admin access required',
+  })
+  async getSearchStats(@GetUser() currentUser?: any) {
     const stats = await this.searchService.getSearchStats();
 
     return {
@@ -480,6 +551,7 @@ export class SearchController {
   }
 
   @Get('health')
+  @Public() // Allow public health checks
   @ApiOperation({
     summary: 'Check search service health',
     description:
@@ -497,7 +569,11 @@ export class SearchController {
     };
   }
 
+  // Admin-only management endpoints
   @Post('reindex/:sessionId')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Reindex all messages for a session',
     description: 'Trigger reindexing of all messages in a specific session',
@@ -508,8 +584,12 @@ export class SearchController {
     description: 'Reindexing job queued successfully',
   })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @ApiResponse({ status: 403, description: 'Admin access required' })
   @HttpCode(HttpStatus.ACCEPTED)
-  async reindexSession(@Param('sessionId') sessionId: string) {
+  async reindexSession(
+    @Param('sessionId') sessionId: string,
+    @GetUser() currentUser: any,
+  ) {
     if (!sessionId || sessionId.trim().length === 0) {
       throw new BadRequestException('Session ID is required');
     }
@@ -524,16 +604,24 @@ export class SearchController {
   }
 
   @Post('index/message/:messageId')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Index a specific message',
     description: 'Manually trigger indexing of a specific message',
   })
   @ApiParam({ name: 'messageId', description: 'Message ID to index' })
   @ApiResponse({ status: 202, description: 'Message queued for indexing' })
+  @ApiResponse({
+    status: 403,
+    description: 'Counselor or admin access required',
+  })
   @HttpCode(HttpStatus.ACCEPTED)
   async indexMessage(
     @Param('messageId') messageId: string,
     @Query('priority', new ParseIntPipe({ optional: true })) priority?: number,
+    @GetUser() currentUser?: any,
   ) {
     if (!messageId || messageId.trim().length === 0) {
       throw new BadRequestException('Message ID is required');
@@ -552,6 +640,9 @@ export class SearchController {
   }
 
   @Delete('message/:messageId')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Remove message from search index',
     description: 'Delete a specific message from the search index',
@@ -559,7 +650,11 @@ export class SearchController {
   @ApiParam({ name: 'messageId', description: 'Message ID to remove' })
   @ApiResponse({ status: 200, description: 'Message removed from index' })
   @ApiResponse({ status: 404, description: 'Message not found in index' })
-  async deleteMessageFromIndex(@Param('messageId') messageId: string) {
+  @ApiResponse({ status: 403, description: 'Admin access required' })
+  async deleteMessageFromIndex(
+    @Param('messageId') messageId: string,
+    @GetUser() currentUser: any,
+  ) {
     if (!messageId || messageId.trim().length === 0) {
       throw new BadRequestException('Message ID is required');
     }
@@ -574,6 +669,9 @@ export class SearchController {
   }
 
   @Post('cleanup')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Clean up old search data',
     description: 'Remove search data older than specified number of days',
@@ -585,10 +683,12 @@ export class SearchController {
     type: 'number',
   })
   @ApiResponse({ status: 200, description: 'Cleanup completed successfully' })
+  @ApiResponse({ status: 403, description: 'Admin access required' })
   @HttpCode(HttpStatus.OK)
   async cleanupOldData(
     @Query('olderThanDays', new ParseIntPipe({ optional: true }))
     olderThanDays?: number,
+    @GetUser() currentUser?: any,
   ) {
     const days = olderThanDays || 30;
 
@@ -606,6 +706,9 @@ export class SearchController {
   }
 
   @Get('sessions/:sessionId/similar')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Find similar sessions',
     description: 'Find sessions with similar conversation patterns',
@@ -619,9 +722,14 @@ export class SearchController {
   })
   @ApiResponse({ status: 200, description: 'Similar sessions found' })
   @ApiResponse({ status: 404, description: 'Session not found' })
+  @ApiResponse({
+    status: 403,
+    description: 'Counselor or admin access required',
+  })
   async findSimilarSessions(
     @Param('sessionId') sessionId: string,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @GetUser() currentUser?: any,
   ) {
     if (!sessionId || sessionId.trim().length === 0) {
       throw new BadRequestException('Session ID is required');
@@ -662,6 +770,9 @@ export class SearchController {
   }
 
   @Get('export/:sessionId')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Export session search data',
     description: 'Export all searchable data for a session',
@@ -674,9 +785,14 @@ export class SearchController {
     enum: ['json', 'csv'],
   })
   @ApiResponse({ status: 200, description: 'Session data exported' })
+  @ApiResponse({
+    status: 403,
+    description: 'Counselor or admin access required',
+  })
   async exportSessionData(
     @Param('sessionId') sessionId: string,
     @Query('format') format?: 'json' | 'csv',
+    @GetUser() currentUser?: any,
   ) {
     if (!sessionId || sessionId.trim().length === 0) {
       throw new BadRequestException('Session ID is required');
@@ -725,6 +841,59 @@ export class SearchController {
       },
       format: 'json',
       timestamp: new Date().toISOString(),
+    };
+  }
+
+  // User-specific search endpoints with restricted access
+  @Get('user/my-sessions')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.USER, UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Search user own sessions',
+    description: 'Search through current user own chat sessions',
+  })
+  @ApiQuery({ name: 'q', description: 'Search query', required: false })
+  @ApiQuery({
+    name: 'limit',
+    description: 'Result limit (max 50)',
+    required: false,
+    type: 'number',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User sessions search results returned',
+  })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
+  async searchUserSessions(
+    @Query('q') query?: string,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @GetUser() currentUser?: any,
+  ) {
+    if (limit && (limit < 1 || limit > 50)) {
+      throw new BadRequestException('Limit must be between 1 and 50');
+    }
+
+    const searchQuery = {
+      query: query || '',
+      userId: currentUser.id, // Force search only user's own sessions
+      limit: limit || 20,
+      offset: 0,
+      includeHighlights: true,
+      includeFacets: false,
+    };
+
+    const results = await this.searchService.searchMessages(searchQuery);
+
+    return {
+      success: true,
+      data: results,
+      metadata: {
+        searchType: 'user_sessions',
+        timestamp: new Date().toISOString(),
+        userId: currentUser.id,
+      },
     };
   }
 }

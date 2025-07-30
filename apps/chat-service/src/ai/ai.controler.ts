@@ -9,6 +9,8 @@ import {
   HttpCode,
   BadRequestException,
   InternalServerErrorException,
+  UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -19,7 +21,9 @@ import {
   getSchemaPath,
   ApiExtraModels,
   ApiOkResponse,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
+import { ThrottlerGuard } from '@nestjs/throttler';
 
 import {
   GenerateResponseDto,
@@ -43,6 +47,14 @@ import {
 
 import { AIService } from './ai.service';
 
+// Import guards and decorators
+import { JwtAuthGuard } from '../../../auth-service/src/auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../auth-service/src/auth/guards/roles.guard';
+import { Roles } from '../../../auth-service/src/auth/decorators/roles.decorator';
+import { GetUser } from '../../../auth-service/src/auth/decorators/get-user.decorator';
+import { Public } from '../../../auth-service/src/auth/decorators/public.decorator';
+import { UserRole } from '../../../auth-service/src/database/entities/user.entity';
+
 @Controller('ai')
 @ApiExtraModels(
   ApiResponseDto,
@@ -56,10 +68,13 @@ import { AIService } from './ai.service';
   EmbeddingStatsResponseDto,
 )
 @ApiTags('AI Service')
+@UseGuards(JwtAuthGuard) // Apply JWT auth globally
 export class AIController {
   constructor(private readonly aiService: AIService) {}
 
   @Post('generate-response')
+  @Public() // Allow public access for anonymous chat sessions
+  @UseGuards(ThrottlerGuard) // Rate limiting for AI requests
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Generate AI response to user message',
@@ -96,6 +111,10 @@ export class AIController {
         error: { type: 'string', example: 'Bad Request' },
       },
     },
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many AI requests - rate limit exceeded',
   })
   @ApiResponse({
     status: 500,
@@ -139,6 +158,9 @@ export class AIController {
   }
 
   @Post('analyze-sentiment')
+  @UseGuards(RolesGuard, ThrottlerGuard)
+  @Roles(UserRole.USER, UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Analyze sentiment of text',
@@ -166,8 +188,17 @@ export class AIController {
     status: 400,
     description: 'Invalid request data - text is required',
   })
+  @ApiResponse({
+    status: 403,
+    description: 'Access denied - authentication required',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Rate limit exceeded',
+  })
   async analyzeSentiment(
     @Body() request: SentimentAnalysisDto,
+    @GetUser() currentUser?: any,
   ): Promise<ApiResponseDto<SentimentResponseDto>> {
     if (!request.text?.trim()) {
       throw new BadRequestException('Text is required for sentiment analysis');
@@ -183,6 +214,9 @@ export class AIController {
   }
 
   @Post('generate-summary')
+  @UseGuards(RolesGuard, ThrottlerGuard)
+  @Roles(UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Generate session summary',
@@ -210,8 +244,17 @@ export class AIController {
     status: 400,
     description: 'Invalid request data - messages array is required',
   })
+  @ApiResponse({
+    status: 403,
+    description: 'Access denied - counselor or admin role required',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Rate limit exceeded',
+  })
   async generateSummary(
     @Body() request: SessionSummaryDto,
+    @GetUser() currentUser: any,
   ): Promise<ApiResponseDto<SummaryResponseDto>> {
     if (!request.messages?.length) {
       throw new BadRequestException(
@@ -231,6 +274,9 @@ export class AIController {
   }
 
   @Post('moderate-content')
+  @UseGuards(RolesGuard, ThrottlerGuard)
+  @Roles(UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Check if content should be flagged',
@@ -258,8 +304,17 @@ export class AIController {
     status: 400,
     description: 'Invalid request data - content is required',
   })
+  @ApiResponse({
+    status: 403,
+    description: 'Access denied - counselor or admin role required',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Rate limit exceeded',
+  })
   async moderateContent(
     @Body() request: ContentModerationDto,
+    @GetUser() currentUser: any,
   ): Promise<ApiResponseDto<ModerationResponseDto>> {
     if (!request.content?.trim()) {
       throw new BadRequestException('Content is required for moderation');
@@ -275,6 +330,7 @@ export class AIController {
   }
 
   @Get('health')
+  @Public() // Allow public health checks
   @ApiOperation({
     summary: 'Check AI service health',
     description:
@@ -331,6 +387,9 @@ export class AIController {
   }
 
   @Post('semantic-search')
+  @UseGuards(RolesGuard, ThrottlerGuard)
+  @Roles(UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Search for semantically similar messages',
@@ -359,8 +418,17 @@ export class AIController {
     status: 400,
     description: 'Invalid request data - query and sessionId are required',
   })
+  @ApiResponse({
+    status: 403,
+    description: 'Access denied - counselor or admin role required',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Rate limit exceeded',
+  })
   async semanticSearch(
     @Body() request: SemanticSearchDto,
+    @GetUser() currentUser: any,
   ): Promise<ApiResponseDto<SemanticSearchResponseDto>> {
     if (!request.query?.trim()) {
       throw new BadRequestException('Search query is required');
@@ -384,6 +452,9 @@ export class AIController {
   }
 
   @Post('generate-embedding')
+  @UseGuards(RolesGuard, ThrottlerGuard)
+  @Roles(UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Generate embedding for text',
@@ -411,8 +482,17 @@ export class AIController {
     status: 400,
     description: 'Invalid request data - text is required',
   })
+  @ApiResponse({
+    status: 403,
+    description: 'Access denied - counselor or admin role required',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Rate limit exceeded',
+  })
   async generateEmbedding(
     @Body() request: EmbeddingDto,
+    @GetUser() currentUser: any,
   ): Promise<ApiResponseDto<EmbeddingResponseDto>> {
     if (!request.text?.trim()) {
       throw new BadRequestException(
@@ -438,6 +518,9 @@ export class AIController {
   }
 
   @Get('embedding-stats/:sessionId')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get embedding statistics for a session',
     description:
@@ -468,11 +551,16 @@ export class AIController {
     description: 'Invalid session ID format',
   })
   @ApiResponse({
+    status: 403,
+    description: 'Access denied - counselor or admin role required',
+  })
+  @ApiResponse({
     status: 404,
     description: 'Session not found',
   })
   async getEmbeddingStats(
     @Param('sessionId') sessionId: string,
+    @GetUser() currentUser: any,
   ): Promise<ApiResponseDto<EmbeddingStatsResponseDto>> {
     if (!sessionId?.trim()) {
       throw new BadRequestException('Session ID is required');
@@ -499,4 +587,105 @@ export class AIController {
       };
     }
   }
+
+  // // Additional admin-only endpoints for AI management
+  // @Post('admin/retrain-model')
+  // @UseGuards(RolesGuard, ThrottlerGuard)
+  // @Roles(UserRole.ADMIN)
+  // @ApiBearerAuth()
+  // @HttpCode(HttpStatus.ACCEPTED)
+  // @ApiOperation({
+  //   summary: 'Trigger AI model retraining (admin only)',
+  //   description:
+  //     'Initiates retraining of the AI model with latest conversation data',
+  // })
+  // @ApiResponse({
+  //   status: 202,
+  //   description: 'Model retraining initiated successfully',
+  // })
+  // @ApiResponse({
+  //   status: 403,
+  //   description: 'Admin access required',
+  // })
+  // @ApiResponse({
+  //   status: 429,
+  //   description: 'Rate limit exceeded',
+  // })
+  // async retrainModel(
+  //   @GetUser() currentUser: any,
+  // ): Promise<ApiResponseDto<{ jobId: string }>> {
+  //   const jobId = await this.aiService.initiateModelRetraining();
+
+  //   return {
+  //     success: true,
+  //     data: { jobId },
+  //     timestamp: new Date().toISOString(),
+  //   };
+  // }
+
+  // @Get('admin/model-metrics')
+  // @UseGuards(RolesGuard)
+  // @Roles(UserRole.ADMIN)
+  // @ApiBearerAuth()
+  // @ApiOperation({
+  //   summary: 'Get AI model performance metrics (admin only)',
+  //   description: 'Retrieves detailed performance metrics for the AI model',
+  // })
+  // @ApiResponse({
+  //   status: 200,
+  //   description: 'Model metrics retrieved successfully',
+  // })
+  // @ApiResponse({
+  //   status: 403,
+  //   description: 'Admin access required',
+  // })
+  // async getModelMetrics(
+  //   @GetUser() currentUser: any,
+  // ): Promise<ApiResponseDto<any>> {
+  //   const metrics = await this.aiService.getModelMetrics();
+
+  //   return {
+  //     success: true,
+  //     data: metrics,
+  //     timestamp: new Date().toISOString(),
+  //   };
+  // }
+
+  // @Post('admin/clear-embeddings/:sessionId')
+  // @UseGuards(RolesGuard)
+  // @Roles(UserRole.ADMIN)
+  // @ApiBearerAuth()
+  // @HttpCode(HttpStatus.OK)
+  // @ApiOperation({
+  //   summary: 'Clear embeddings for a session (admin only)',
+  //   description: 'Removes all embeddings associated with a specific session',
+  // })
+  // @ApiParam({
+  //   name: 'sessionId',
+  //   description: 'Session ID to clear embeddings for',
+  // })
+  // @ApiResponse({
+  //   status: 200,
+  //   description: 'Embeddings cleared successfully',
+  // })
+  // @ApiResponse({
+  //   status: 403,
+  //   description: 'Admin access required',
+  // })
+  // async clearSessionEmbeddings(
+  //   @Param('sessionId') sessionId: string,
+  //   @GetUser() currentUser: any,
+  // ): Promise<ApiResponseDto<{ cleared: number }>> {
+  //   if (!sessionId?.trim()) {
+  //     throw new BadRequestException('Session ID is required');
+  //   }
+
+  //   const cleared = await this.aiService.clearSessionEmbeddings(sessionId);
+
+  //   return {
+  //     success: true,
+  //     data: { cleared },
+  //     timestamp: new Date().toISOString(),
+  //   };
+  // }
 }
