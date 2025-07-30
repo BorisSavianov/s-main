@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Database Services
   postgres:
@@ -131,36 +129,6 @@ services:
     networks:
       - serenity_space_network
 
-  user-service:
-    build:
-      context: ./apps/user-service
-      dockerfile: Dockerfile
-    container_name: serenity_space_user
-    environment:
-      - NODE_ENV=development
-      - PORT=4001
-      - DATABASE_URL=postgresql://postgres:mentalhealth2024@postgres:5432/mentalhealth
-      - REDIS_URL=redis://:mentalhealth2024@redis:6379
-      - AUTH_SERVICE_URL=http://auth-service:4000
-    ports:
-      - '4001:4001'
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      auth-service:
-        condition: service_healthy
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:4001/health']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    restart: unless-stopped
-    networks:
-      - serenity_space_network
-
   chat-service:
     build:
       context: ./
@@ -169,12 +137,11 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV}
       - PORT_CHAT=${PORT_CHAT}
+      - PORT_AUTH=${PORT_AUTH}
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
       - RABBITMQ_URL=${RABBITMQ_URL}
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
-      - SMTP_USER=${SMTP_USER}
-      - SMTP_PASS=${SMTP_PASS}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - MAIL_HOST=${MAIL_HOST}
       - MAIL_PORT=${MAIL_PORT}
@@ -291,6 +258,8 @@ services:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy
+      auth-service:
+        condition: service_started
 
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4002/health']
@@ -404,10 +373,10 @@ services:
       - PORT=4006
       - REDIS_URL=redis://:mentalhealth2024@redis:6379
       - RABBITMQ_URL=amqp://mentalhealth:mentalhealth2024@rabbitmq:5672
-      - SMTP_HOST=smtp.gmail.com
-      - SMTP_PORT=587
-      - SMTP_USER=your-email@gmail.com
-      - SMTP_PASS=your-app-password
+      - MAIL_HOST=smtp.gmail.com
+      - MAIL_PORT=587
+      - MAIL_USER=your-email@gmail.com
+      - MAIL_PASS=your-app-password
       - FROM_EMAIL=support@mentalhealth.app
     ports:
       - '4006:4006'
@@ -468,10 +437,13 @@ services:
     depends_on:
       - auth-service
       - chat-service
-      - scheduler-service
-      - video-service
-      - mood-service
-      - notification-service
+      # - scheduler-service
+      # - video-service
+      # - mood-service
+      # - notification-service
+      - prometheus
+      - grafana
+
     healthcheck:
       test: ['CMD', 'nginx', '-t']
       interval: 30s

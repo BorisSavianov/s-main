@@ -51,7 +51,7 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('docs', app, document);
 
   // Health check endpoint
   app.getHttpAdapter().get('/health', (req, res) => {
@@ -63,11 +63,11 @@ async function bootstrap() {
     });
   });
 
-  const port = process.env.PORT || 4002;
+  const port = process.env.PORT_CHAT || 4002;
   await app.listen(port);
 
   logger.log(`🚀 Chat service running on port ${port}`);
-  logger.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
+  logger.log(`📚 API Documentation: http://localhost:${port}/docs`);
 }
 
 bootstrap();

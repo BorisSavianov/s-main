@@ -33,21 +33,22 @@ async function bootstrap() {
     .setDescription(
       'Authentication service for mental health platform SerenitySpace',
     )
-    .setVersion('2.0')
+    .setVersion('1.0')
     .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('docs', app, document);
 
   // Health check endpoint
   app.getHttpAdapter().get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  const port = process.env.PORT || 4000;
+  const port = process.env.PORT_AUTH || 4000;
   await app.listen(port);
-  console.log(`Auth service running on port ${port}`);
+  console.log(`🚀 Auth service running on port ${port}`);
+  console.log(`📚 API Documentation: http://localhost:${port}/docs`);
 }
 
 bootstrap();

@@ -22,7 +22,6 @@ import { AppConfigService } from './config/config.service';
 import { ChatModule } from './chat/services/chat.module';
 import { AiModule } from './ai/ai.module';
 import { SearchModule } from './search/search.module';
-import { AuthModule } from '../../auth-service/src/auth/auth.module';
 import { WebSocketModule } from './websocket/websocket.module';
 
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
@@ -160,8 +159,6 @@ import {
     // Scheduled tasks
     ScheduleModule.forRoot(),
 
-    // Feature modules
-    AuthModule,
     ChatModule,
     AiModule,
     SearchModule,

@@ -1,32 +1,31 @@
-# name: CD
+name: CD
 
-# on:
-#   push:
-#     branches: [main]
-#     tags:
-#       - 'v*'
-#   workflow_run:
-#     workflows: ["CI"]
-#     types:
-#       - completed
-#     branches: [main]
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  workflow_run:
+    workflows: ['CI']
+    types:
+      - completed
+    branches: [main]
 
-# env:
-#   REGISTRY: ghcr.io
-#   IMAGE_NAME: ${{ github.repository }}
-#   NODE_VERSION: '20.x'
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: '20.x'
 
-# jobs:
-#   # Only run if CI passed successfully
-#   check-ci-status:
-#     runs-on: ubuntu-latest
-#     if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'push'
-#     outputs:
-#       should-deploy: ${{ steps.check.outputs.result }}
-#     steps:
-#       - id: check
-#         run: echo "result=true" >> $GITHUB_OUTPUT
-
+jobs:
+  # Only run if CI passed successfully
+  check-ci-status:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'push'
+    # outputs:
+    #   should-deploy: ${{ steps.check.outputs.result }}
+    # steps:
+    #   - id: check
+    #     run: echo "result=true" >> $GITHUB_OUTPUT
 #   # Build and push Docker images
 #   build-and-push:
 #     runs-on: ubuntu-latest
