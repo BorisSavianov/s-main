@@ -41,6 +41,7 @@ import {
 } from '@willsoto/nestjs-prometheus';
 import { RedisModule as JwtRefreshRedisModule } from 'apps/auth-service/src/redis/redis.module';
 import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -185,6 +186,7 @@ import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
     AiModule,
     SearchModule,
     WebSocketModule,
+    HealthModule,
   ],
   controllers: [PrometheusController],
   providers: [

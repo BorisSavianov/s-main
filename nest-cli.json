@@ -6,7 +6,9 @@
     "deleteOutDir": true,
     "webpack": true,
     "tsConfigPath": "apps/serenity-space/tsconfig.app.json",
-    "assets": ["**/*.hbs"]
+    "assets": [
+      "**/*.hbs"
+    ]
   },
   "monorepo": true,
   "root": "apps/serenity-space",
@@ -36,6 +38,15 @@
       "sourceRoot": "apps/serenity-space/src",
       "compilerOptions": {
         "tsConfigPath": "apps/serenity-space/tsconfig.app.json"
+      }
+    },
+    "user-service": {
+      "type": "application",
+      "root": "apps/user-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/user-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/user-service/tsconfig.app.json"
       }
     }
   }

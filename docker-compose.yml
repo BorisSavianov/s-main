@@ -120,7 +120,50 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:4000/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:4000/api/v1/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - serenity_space_network
+
+  user-service:
+    build:
+      context: ./
+      dockerfile: Dockerfile-user
+    container_name: serenity_space_user
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - PORT=${PORT_AUTH}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      - BCRYPT_ROUNDS=${BCRYPT_ROUNDS}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL}
+      - MAIL_HOST=${MAIL_HOST}
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_SECURE=${MAIL_SECURE}
+      - MAIL_USER=${MAIL_USER}
+      - MAIL_PASS=${MAIL_PASS}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME}
+      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
+      - FRONTEND_URL=${FRONTEND_URL}
+    ports:
+      - '4001:4001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:4001/api/v1/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -260,9 +303,11 @@ services:
         condition: service_healthy
       auth-service:
         condition: service_started
+      ollama:
+        condition: service_started
 
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:4002/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:4002/api/v1/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -296,7 +341,7 @@ services:
       auth-service:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:4003/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:4003/api/v1/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -324,7 +369,7 @@ services:
       auth-service:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:4004/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:4004/api/v1/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -354,7 +399,7 @@ services:
       auth-service:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:4005/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:4005/api/v1/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -386,7 +431,7 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:4006/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:4006/api/v1/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -413,7 +458,7 @@ services:
     depends_on:
       - nginx
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/v1/health']
       interval: 30s
       timeout: 10s
       retries: 3

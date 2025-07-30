@@ -1,7 +1,6 @@
 // src/app.module.ts
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
@@ -10,6 +9,7 @@ import { DatabaseModule } from './database/database.module';
 import { RedisModule } from './redis/redis.module';
 import { ThrottlerStorageRedisService } from './throttler/throttler-storage-redis.service';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -43,6 +43,7 @@ import { PrometheusModule } from '@willsoto/nestjs-prometheus';
       }),
     }),
     AuthModule,
+    HealthModule,
   ],
 })
 export class AppModule {}
