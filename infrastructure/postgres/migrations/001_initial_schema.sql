@@ -2,7 +2,6 @@
 -- File: infrastructure/postgres/migrations/001_initial_schema.sql
 
 -- This migration sets up the initial database schema for the mental health platform
--- Run timestamp: 2024-01-01 00:00:00
 
 BEGIN;
 
