@@ -318,17 +318,16 @@ services:
 
   scheduler-service:
     build:
-      context: ./apps/scheduler-service
-      dockerfile: Dockerfile
+      context: ./
+      dockerfile: Dockerfile-scheduler
     container_name: serenity_space_scheduler
     environment:
-      - NODE_ENV=development
-      - PORT=4003
-      - DATABASE_URL=postgresql://postgres:mentalhealth2024@postgres:5432/mentalhealth
-      - REDIS_URL=redis://:mentalhealth2024@redis:6379
-      - RABBITMQ_URL=amqp://mentalhealth:mentalhealth2024@rabbitmq:5672
-      - AUTH_SERVICE_URL=http://auth-service:4000
-      - NOTIFICATION_SERVICE_URL=http://notification-service:4006
+      - NODE_ENV=${NODE_ENV}
+      - PORT_CHAT=${PORT_CHAT}
+      - PORT_AUTH=${PORT_AUTH}
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
     ports:
       - '4003:4003'
     depends_on:
@@ -339,7 +338,10 @@ services:
       rabbitmq:
         condition: service_healthy
       auth-service:
-        condition: service_healthy
+        condition: service_started
+      user-service:
+        condition: service_started
+
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4003/api/v1/health']
       interval: 30s
@@ -482,6 +484,7 @@ services:
     depends_on:
       - auth-service
       - chat-service
+      - user-service
       # - scheduler-service
       # - video-service
       # - mood-service

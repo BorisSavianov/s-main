@@ -31,6 +31,15 @@
         "tsConfigPath": "apps/chat-service/tsconfig.app.json"
       }
     },
+    "scheduler-service": {
+      "type": "application",
+      "root": "apps/scheduler-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/scheduler-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/scheduler-service/tsconfig.app.json"
+      }
+    },
     "serenity-space": {
       "type": "application",
       "root": "apps/serenity-space",

@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { CounselorsController } from './counselors.controler';
-import { CounselorsService } from './counselots.service';
+import { CounselorsService } from './counselors.service';
 import { User } from '../database/entities/user.entity';
 import { CounselorProfile } from '../database/entities/counselor-profile.entity';
 import { RedisModule } from '../redis/redis.module';

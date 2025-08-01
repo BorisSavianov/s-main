@@ -224,7 +224,7 @@ CREATE TABLE scheduling_preferences (
     -- Notification preferences
     enable_reminders BOOLEAN DEFAULT true,
     reminder_times INTEGER[] DEFAULT ARRAY[1440, 60, 15], -- 24h, 1h, 15min before
-    preferred_reminder_types reminder_type[] DEFAULT ARRAY['email', 'push'],
+    preferred_reminder_types reminder_type[] DEFAULT ARRAY['email', 'push']::reminder_type[],
     
     -- Timezone and availability
     timezone VARCHAR(50) DEFAULT 'UTC',
@@ -439,9 +439,9 @@ DECLARE
     base_meeting RECORD;
     new_start TIMESTAMP WITH TIME ZONE;
     new_end TIMESTAMP WITH TIME ZONE;
+    iteration_date DATE;
     interval_text TEXT;
     created_count INTEGER := 0;
-    current_date DATE;
 BEGIN
     -- Get the base meeting
     SELECT * INTO base_meeting 
@@ -464,15 +464,15 @@ BEGIN
     -- Generate recurring meetings
     new_start := base_meeting.scheduled_start;
     new_end := base_meeting.scheduled_end;
-    current_date := base_meeting.scheduled_start::DATE;
+    iteration_date := base_meeting.scheduled_start::DATE;
     
-    WHILE current_date < COALESCE(end_date, base_meeting.recurring_until, CURRENT_DATE + INTERVAL '1 year') LOOP
+    WHILE iteration_date < COALESCE(end_date, base_meeting.recurring_until, CURRENT_DATE + INTERVAL '1 year') LOOP
         new_start := new_start + interval_text::INTERVAL;
         new_end := new_end + interval_text::INTERVAL;
-        current_date := new_start::DATE;
+        iteration_date := new_start::DATE;
         
         -- Skip if past end date
-        IF current_date > COALESCE(end_date, base_meeting.recurring_until, CURRENT_DATE + INTERVAL '1 year') THEN
+        IF iteration_date > COALESCE(end_date, base_meeting.recurring_until, CURRENT_DATE + INTERVAL '1 year') THEN
             EXIT;
         END IF;
         
@@ -515,43 +515,41 @@ SELECT id FROM users
 ON CONFLICT (user_id) DO NOTHING;
 
 -- Insert sample time slots for the existing counselor
-INSERT INTO counselor_time_slots (counselor_id, slot_date, start_time, end_time, slot_duration_minutes)
-SELECT 
-    u.id,
-    generate_series(
-        CURRENT_DATE + INTERVAL '1 day',
-        CURRENT_DATE + INTERVAL '30 days',
-        INTERVAL '1 day'
-    )::DATE,
-    generate_series(
-        '09:00'::TIME,
-        '16:00'::TIME,
-        INTERVAL '1 hour'
-    )::TIME,
-    generate_series(
-        '10:00'::TIME,
-        '17:00'::TIME,
-        INTERVAL '1 hour'
-    )::TIME,
-    60
-FROM users u
-WHERE u.role = 'counselor'
-AND generate_series(
-    CURRENT_DATE + INTERVAL '1 day',
-    CURRENT_DATE + INTERVAL '30 days',
-    INTERVAL '1 day'
-)::DATE NOT IN (
-    SELECT DISTINCT slot_date 
-    FROM counselor_time_slots 
-    WHERE counselor_id = u.id
+INSERT INTO counselor_time_slots (
+  counselor_id,
+  slot_date,
+  start_time,
+  end_time,
+  slot_duration_minutes
 )
-AND EXTRACT(DOW FROM generate_series(
-    CURRENT_DATE + INTERVAL '1 day',
-    CURRENT_DATE + INTERVAL '30 days',
-    INTERVAL '1 day'
-)) BETWEEN 1 AND 5; -- Monday to Friday
+SELECT
+  u.id,
+  day::DATE AS slot_date,
+  start_time::TIME,
+  (start_time + INTERVAL '1 hour')::TIME AS end_time,
+  60
+FROM users u
+CROSS JOIN LATERAL generate_series(
+  CURRENT_DATE + INTERVAL '1 day',
+  CURRENT_DATE + INTERVAL '30 days',
+  INTERVAL '1 day'
+) AS day
+CROSS JOIN LATERAL generate_series(
+  (day::DATE + TIME '09:00')::TIMESTAMP,
+  (day::DATE + TIME '16:00')::TIMESTAMP,
+  INTERVAL '1 hour'
+) AS start_time
+WHERE u.role = 'counselor'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM counselor_time_slots cts
+    WHERE cts.counselor_id = u.id
+      AND cts.slot_date = day::DATE
+  )
+  AND EXTRACT(DOW FROM day) BETWEEN 1 AND 5;  -- Monday to Friday
+
 
 -- Record this migration
-INSERT INTO migrations (migration_name) VALUES ('008_scheduling_service');
+INSERT INTO migrations (migration_name) VALUES ('008_schedules');
 
 COMMIT;

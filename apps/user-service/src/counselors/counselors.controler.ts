@@ -23,7 +23,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 
-import { CounselorsService } from './counselots.service';
+import { CounselorsService } from './counselors.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -47,7 +47,7 @@ export class CounselorsController {
 
   @Post('profile')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.COUNSELOR)
+  @Roles(UserRole.COUNSELOR, UserRole.USER)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create counselor profile' })
   @ApiResponse({

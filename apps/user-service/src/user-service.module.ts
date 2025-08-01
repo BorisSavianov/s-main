@@ -33,7 +33,7 @@ import {
     PrometheusModule.register({
       defaultMetrics: {
         enabled: true,
-        config: { prefix: 'chat_service_' },
+        config: { prefix: 'user_service_' },
       },
     }),
 

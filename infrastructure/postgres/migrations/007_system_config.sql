@@ -149,18 +149,18 @@ INSERT INTO system_config (key, value, description, is_sensitive) VALUES
 ('app_version', '1.0.0', 'Current application version', false),
 ('max_session_duration', '3600', 'Maximum session duration in seconds', false),
 ('default_appointment_duration', '60', 'Default appointment duration in minutes', false),
-('ai_model_name', 'llama3.2:3b', 'Default AI model for chat', false),
+('ai_model_name', 'llama3.1:8b', 'Default AI model for chat', false),
 ('max_daily_ai_messages', '50', 'Maximum AI messages per user per day', false),
 ('enable_anonymous_chat', 'true', 'Allow anonymous chat sessions', false),
 ('maintenance_mode', 'false', 'Enable maintenance mode', false);
 
 -- Create default admin user (password: admin123)
 INSERT INTO users (email, password_hash, first_name, last_name, role, is_active, is_verified) VALUES
-('admin@mentalhealth.app', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/lewUL3cQIGm/vG.bO', 'System', 'Administrator', 'admin', true, true);
+('admin@serenityspace.app', '$2b$12$z6M0lCrKW/Qx8YkxC8ZKz.wv7zqeawUYWPPeZZutQsCtskLX8tqAm', 'System', 'Administrator', 'admin', true, true);
 
 -- Create a sample counselor user
 INSERT INTO users (email, password_hash, first_name, last_name, role, is_active, is_verified) VALUES
-('counselor@mentalhealth.app', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/lewUL3cQIGm/vG.bO', 'Dr. Sarah', 'Johnson', 'counselor', true, true);
+('counselor@serenityspace.app', '$2b$12$z6M0lCrKW/Qx8YkxC8ZKz.wv7zqeawUYWPPeZZutQsCtskLX8tqAm', 'Dr. Sarah', 'Johnson', 'counselor', true, true);
 
 -- Create counselor profile for the sample counselor
 INSERT INTO counselor_profiles (user_id, license_number, specialties, qualifications, experience_years, hourly_rate, bio, languages)
@@ -185,5 +185,7 @@ SELECT
     '17:00'::time
 FROM users 
 WHERE email = 'counselor@mentalhealth.app';
+
+INSERT INTO migrations (migration_name) VALUES ('007_system_config');
 
 COMMIT;
