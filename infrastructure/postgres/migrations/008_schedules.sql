@@ -352,33 +352,27 @@ BEGIN
             
             -- Only create reminders for future times
             IF reminder_timestamp > CURRENT_TIMESTAMP THEN
-                -- Create reminder for user
-                INSERT INTO meeting_reminders (
-                    meeting_id, recipient_id, reminder_type, scheduled_time, 
-                    minutes_before, title, message
-                )
-                SELECT 
-                    NEW.id,
-                    NEW.user_id,
-                    unnest(prefs.preferred_reminder_types),
-                    reminder_timestamp,
-                    reminder_time,
-                    'Upcoming Counseling Session',
-                    'Your counseling session is scheduled for ' || to_char(NEW.scheduled_start, 'YYYY-MM-DD HH24:MI') || '. Meeting type: ' || NEW.meeting_type;
-                
-                -- Create reminder for counselor
-                INSERT INTO meeting_reminders (
-                    meeting_id, recipient_id, reminder_type, scheduled_time, 
-                    minutes_before, title, message
-                )
-                SELECT 
-                    NEW.id,
-                    NEW.counselor_id,
-                    unnest(prefs.preferred_reminder_types),
-                    reminder_timestamp,
-                    reminder_time,
-                    'Upcoming Counseling Session',
-                    'You have a counseling session scheduled for ' || to_char(NEW.scheduled_start, 'YYYY-MM-DD HH24:MI') || '. Meeting type: ' || NEW.meeting_type;
+               -- Handle both user and counselor reminders uniquely
+                FOR recipient_id IN SELECT DISTINCT unnest(ARRAY[NEW.user_id, NEW.counselor_id]) LOOP
+                    FOR reminder_type IN SELECT unnest(prefs.preferred_reminder_types) LOOP
+                        reminder_timestamp := NEW.scheduled_start - (reminder_time || ' minutes')::INTERVAL;
+
+                        IF reminder_timestamp > CURRENT_TIMESTAMP THEN
+                            INSERT INTO meeting_reminders (
+                                meeting_id, recipient_id, reminder_type, scheduled_time, 
+                                minutes_before, title, message
+                            ) VALUES (
+                                NEW.id,
+                                recipient_id,
+                                reminder_type,
+                                reminder_timestamp,
+                                reminder_time,
+                                'Upcoming Counseling Session',
+                                'You have a counseling session scheduled for ' || to_char(NEW.scheduled_start, 'YYYY-MM-DD HH24:MI') || '. Meeting type: ' || NEW.meeting_type
+                            ) ON CONFLICT DO NOTHING;
+                        END IF;
+                    END LOOP;
+                END LOOP;
             END IF;
         END LOOP;
     END IF;

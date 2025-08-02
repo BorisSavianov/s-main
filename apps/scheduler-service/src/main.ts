@@ -78,9 +78,6 @@ async function bootstrap() {
       .setDescription('Comprehensive API for mental health counseling platform')
       .setVersion('1.0')
       .addBearerAuth()
-
-      .addTag('scheduling', 'Meeting scheduling')
-
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
