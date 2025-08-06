@@ -1,0 +1,120 @@
+<!-- apps/notification-service/src/templates/appointment-confirmed.hbs -->
+
+<html lang='en'>
+  <head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>Appointment Reminder</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        text-align: center;
+        border-radius: 10px 10px 0 0;
+      }
+      .content {
+        background: #f8f9fa;
+        padding: 30px;
+        border-radius: 0 0 10px 10px;
+      }
+      .appointment-card {
+        background: white;
+        border-left: 4px solid #667eea;
+        padding: 20px;
+        margin: 20px 0;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+      .appointment-detail {
+        display: flex;
+        justify-content: space-between;
+        margin: 10px 0;
+        padding: 8px 0;
+        border-bottom: 1px solid #eee;
+      }
+      .appointment-detail:last-child {
+        border-bottom: none;
+      }
+      .label {
+        font-weight: bold;
+        color: #28a745;
+      }
+      .footer {
+        text-align: center;
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid #ddd;
+        font-size: 14px;
+        color: #666;
+      }
+      .success-badge {
+        background: #d4edda;
+        color: #155724;
+        padding: 10px 20px;
+        border-radius: 5px;
+        text-align: center;
+        margin: 20px 0;
+        border: 1px solid #c3e6cb;
+      }
+    </style>
+  </head>
+  <body>
+    <div class='header'>
+      <h1>✅ Appointment Confirmed</h1>
+      <p>Your counseling session has been confirmed</p>
+    </div>
+
+    <div class='content'>
+      <p>Hi {{userName}},</p>
+
+      <div class='success-badge'>
+        <strong>Great news!</strong>
+        Your appointment has been confirmed.
+      </div>
+
+      <p>Here are your appointment details:</p>
+
+      <div class='appointment-card'>
+        <div class='appointment-detail'>
+          <span class='label'>Counselor:</span>
+          <span>{{counselorName}}</span>
+        </div>
+        <div class='appointment-detail'>
+          <span class='label'>Date:</span>
+          <span>{{formatDate appointmentDate}}</span>
+        </div>
+        <div class='appointment-detail'>
+          <span class='label'>Time:</span>
+          <span>{{appointmentTime}}</span>
+        </div>
+        <div class='appointment-detail'>
+          <span class='label'>Duration:</span>
+          <span>{{#if duration}}{{duration}} minutes{{else}}60 minutes{{/if}}</span>
+        </div>
+        <div class='appointment-detail'>
+          <span class='label'>Meeting Type:</span>
+          <span>{{capitalize meetingType}}</span>
+        </div>
+      </div>
+
+      <p>We'll send you a reminder before your session. Please mark your
+        calendar and prepare any topics you'd like to discuss.</p>
+
+      <div class='footer'>
+        <p>Need to make changes? You can reschedule up to 24 hours before your
+          appointment.</p>
+        <p><strong>Mental Health Support Platform</strong><br />
+          Supporting your journey to better mental health.</p>
+      </div>
+    </div>
+  </body>
+</html>

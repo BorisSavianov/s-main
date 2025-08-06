@@ -68,7 +68,7 @@ import { HealthModule } from './health/health.module';
       },
     }),
 
-    // TypeORM (Postgres/MySQL/etc)
+    // TypeORM (Postgres)
     TypeOrmModule.forRootAsync({
       imports: [AppConfigModule],
       useFactory: async (

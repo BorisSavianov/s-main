@@ -1,8 +1,7 @@
-// src/scheduling/services/reminder.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { SchedulingService } from './scheduling.service';
-//import { NotificationService } from '../../notifications/notification.service'; // Assume this exists
+import { NotificationIntegrationService } from './notification-integration.service';
 
 @Injectable()
 export class ReminderService {
@@ -10,7 +9,7 @@ export class ReminderService {
 
   constructor(
     private readonly schedulingService: SchedulingService,
-    // private readonly notificationService: NotificationService, // Inject your notification service
+    private readonly notificationIntegrationService: NotificationIntegrationService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -42,31 +41,28 @@ export class ReminderService {
   private async sendReminder(reminder: any) {
     const { reminderType, recipient, meeting, title, message } = reminder;
 
-    const notificationData = {
-      userId: recipient.id,
-      title: title || `Meeting Reminder: ${meeting.title}`,
-      message:
-        message || `Your meeting is scheduled for ${meeting.scheduledStart}`,
-      type: reminderType,
-      data: {
-        meetingId: meeting.id,
-        reminderId: reminder.id,
-      },
+    // Get user and counselor names from the meeting relations
+    const userName =
+      meeting.user?.firstName + ' ' + meeting.user?.lastName || 'User';
+    const counselorName =
+      meeting.counselor?.firstName + ' ' + meeting.counselor?.lastName ||
+      'Counselor';
+
+    const appointmentData = {
+      userId: meeting.userId,
+      counselorId: meeting.counselorId,
+      appointmentId: meeting.id,
+      appointmentDate: meeting.scheduledStart.toISOString().split('T')[0],
+      appointmentTime: meeting.scheduledStart.toTimeString().slice(0, 5),
+      userName,
+      counselorName,
+      reminderType,
+      minutesBefore: reminder.minutesBefore,
     };
 
-    // switch (reminderType) {
-    //   case 'email':
-    //     await this.notificationService.sendEmail(notificationData);
-    //     break;
-    //   case 'sms':
-    //     await this.notificationService.sendSMS(notificationData);
-    //     break;
-    //   case 'push':
-    //     await this.notificationService.sendPushNotification(notificationData);
-    //     break;
-    //   case 'in_app':
-    //     await this.notificationService.sendInAppNotification(notificationData);
-    //     break;
-    // }
+    // Send through notification service
+    await this.notificationIntegrationService.sendAppointmentReminder(
+      appointmentData,
+    );
   }
 }

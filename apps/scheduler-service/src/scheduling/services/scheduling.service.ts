@@ -28,6 +28,7 @@ import { CreateMeetingDto } from '../dto/create-meeting.dto';
 import { UpdateMeetingDto } from '../dto/update-meeting.dto';
 import { SchedulingQueryDto } from '../dto/scheduling-query.dto';
 import { CreateTimeSlotDto } from '../dto/create-time-slot.dto';
+import { NotificationIntegrationService } from './notification-integration.service';
 
 @Injectable()
 export class SchedulingService {
@@ -40,6 +41,7 @@ export class SchedulingService {
     private reminderRepository: Repository<MeetingReminder>,
     @InjectRepository(SchedulingPreferences)
     private preferencesRepository: Repository<SchedulingPreferences>,
+    private readonly notificationIntegrationService: NotificationIntegrationService,
   ) {}
 
   // Meeting Management
@@ -74,6 +76,38 @@ export class SchedulingService {
     });
 
     const savedMeeting = await this.meetingRepository.save(meeting);
+
+    // Load related entities for notifications
+    const meetingWithRelations = await this.meetingRepository.findOne({
+      where: { id: savedMeeting.id },
+      relations: ['user', 'counselor'],
+    });
+
+    // Send confirmation notification
+    if (meetingWithRelations) {
+      const userName =
+        meetingWithRelations.user?.firstName +
+          ' ' +
+          meetingWithRelations.user?.lastName || 'User';
+      const counselorName =
+        meetingWithRelations.counselor?.firstName +
+          ' ' +
+          meetingWithRelations.counselor?.lastName || 'Counselor';
+
+      await this.notificationIntegrationService.sendAppointmentConfirmation({
+        userId: meetingWithRelations.userId,
+        counselorId: meetingWithRelations.counselorId,
+        appointmentId: meetingWithRelations.id,
+        appointmentDate: meetingWithRelations.scheduledStart
+          .toISOString()
+          .split('T')[0],
+        appointmentTime: meetingWithRelations.scheduledStart
+          .toTimeString()
+          .slice(0, 5),
+        userName,
+        counselorName,
+      });
+    }
 
     // Generate meeting room details if needed
     if (meeting.meetingType === MeetingType.VIDEO_CALL) {
@@ -243,7 +277,28 @@ export class SchedulingService {
     meeting.cancelledAt = new Date();
     meeting.cancellationReason = reason!;
 
-    return await this.meetingRepository.save(meeting);
+    const cancelledMeeting = await this.meetingRepository.save(meeting);
+
+    // Send cancellation notification
+    const userName =
+      meeting.user?.firstName + ' ' + meeting.user?.lastName || 'User';
+    const counselorName =
+      meeting.counselor?.firstName + ' ' + meeting.counselor?.lastName ||
+      'Counselor';
+
+    await this.notificationIntegrationService.sendAppointmentCancellation({
+      userId: meeting.userId,
+      counselorId: meeting.counselorId,
+      appointmentId: meeting.id,
+      appointmentDate: meeting.scheduledStart.toISOString().split('T')[0],
+      appointmentTime: meeting.scheduledStart.toTimeString().slice(0, 5),
+      userName,
+      counselorName,
+      reason,
+      cancelledBy: userId === meeting.userId ? 'user' : 'counselor',
+    });
+
+    return cancelledMeeting;
   }
 
   async confirmMeeting(id: string, userId: string): Promise<ScheduledMeeting> {

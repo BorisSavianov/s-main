@@ -325,9 +325,11 @@ services:
       - NODE_ENV=${NODE_ENV}
       - PORT_CHAT=${PORT_CHAT}
       - PORT_AUTH=${PORT_AUTH}
+      - PORT_NOTIFICATION=${PORT_NOTIFICATION}
       - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      - NOTIFICATION_SERVICE_URL= ${NOTIFICATION_SERVICE_URL}
     ports:
       - '4003:4003'
     depends_on:
@@ -412,25 +414,32 @@ services:
 
   notification-service:
     build:
-      context: ./apps/notification-service
-      dockerfile: Dockerfile
+      context: ./
+      dockerfile: Dockerfile-notification
     container_name: serenity_space_notification
     environment:
-      - NODE_ENV=development
-      - PORT=4006
-      - REDIS_URL=redis://:mentalhealth2024@redis:6379
-      - RABBITMQ_URL=amqp://mentalhealth:mentalhealth2024@rabbitmq:5672
-      - MAIL_HOST=smtp.gmail.com
-      - MAIL_PORT=587
-      - MAIL_USER=your-email@gmail.com
-      - MAIL_PASS=your-app-password
-      - FROM_EMAIL=support@mentalhealth.app
+      - NODE_ENV=${NODE_ENV}
+      - PORT_NOTIFICATION=${PORT_NOTIFICATION}
+      - REDIS_URL=${REDIS_URL}
+      - DATABASE_URL=${DATABASE_URL}
+      - MAIL_HOST=${MAIL_HOST}
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_SECURE=${MAIL_SECURE}
+      - MAIL_USER=${MAIL_USER}
+      - MAIL_PASS=${MAIL_PASS}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME}
+      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      - JWT_SECRET=${JWT_SECRET}
     ports:
       - '4006:4006'
     depends_on:
       redis:
         condition: service_healthy
-      rabbitmq:
+      postgres:
         condition: service_healthy
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4006/api/v1/health']
@@ -485,7 +494,7 @@ services:
       - auth-service
       - chat-service
       - user-service
-      # - scheduler-service
+      - scheduler-service
       # - video-service
       # - mood-service
       # - notification-service
