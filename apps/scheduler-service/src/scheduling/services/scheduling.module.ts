@@ -20,6 +20,8 @@ import { SchedulingPreferences } from '../entities/scheduling-prefrences.entity'
 
 import { MeetingEventListener } from '../listeners/meeting-event-listener';
 import { MeetingAccessGuard } from '../guards/meeting-access.guard';
+import { NotificationIntegrationService } from './notification-integration.service';
+import { HttpModule, HttpService } from '@nestjs/axios';
 
 @Module({
   imports: [
@@ -33,6 +35,7 @@ import { MeetingAccessGuard } from '../guards/meeting-access.guard';
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
     ConfigModule,
+    HttpModule,
   ],
   controllers: [SchedulingController],
   providers: [
@@ -43,6 +46,7 @@ import { MeetingAccessGuard } from '../guards/meeting-access.guard';
     AvailabilityService,
     MeetingEventListener,
     MeetingAccessGuard,
+    NotificationIntegrationService,
   ],
   exports: [
     SchedulingService,

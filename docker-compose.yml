@@ -497,7 +497,7 @@ services:
       - scheduler-service
       # - video-service
       # - mood-service
-      # - notification-service
+      - notification-service
       - prometheus
       - grafana
 
