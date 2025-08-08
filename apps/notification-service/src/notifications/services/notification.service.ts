@@ -154,9 +154,6 @@ export class NotificationService {
       relations: ['user'],
     });
 
-    this.logger.log('user: ', notification?.user);
-    this.logger.log('Email target:', notification?.user?.email); // Should not be undefined or empty
-
     if (!notification) {
       throw new NotFoundException('Notification not found');
     }

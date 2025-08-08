@@ -114,7 +114,7 @@ import { join } from 'path';
             'SerenitySpace',
         },
         template: {
-          dir: join(__dirname, '/templates'),
+          dir: join(__dirname, '/src/templates/email'),
           adapter: new HandlebarsAdapter(),
           options: {
             strict: true,
