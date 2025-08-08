@@ -43,4 +43,12 @@ export class AppointmentStatusDto {
   @IsOptional()
   @IsString()
   cancelledBy: 'user' | 'counselor';
+
+  @ApiProperty({ description: 'User email' })
+  @IsString()
+  userEmail: string;
+
+  @ApiProperty({ description: 'Counselor email' })
+  @IsString()
+  counselorEmail: string;
 }

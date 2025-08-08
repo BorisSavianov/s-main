@@ -119,6 +119,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      notification-service:
+        condition: service_started
+
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4000/api/v1/health']
       interval: 30s
@@ -434,6 +437,7 @@ services:
       - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
       - JWT_SECRET=${JWT_SECRET}
+      - PLATFORM_NAME=${PLATFORM_NAME}
     ports:
       - '4006:4006'
     depends_on:

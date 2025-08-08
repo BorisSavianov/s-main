@@ -25,6 +25,7 @@ import { PasswordService } from './password.service';
 import { EmailService } from './email.service';
 import { SessionService } from './session.service';
 import { UserService } from './user.service';
+import { NotificationServiceClient } from 'apps/notification-service/src/clients/notification-service.client';
 
 import {
   RegisterDto,
@@ -76,6 +77,7 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly sessionService: SessionService,
     private readonly userService: UserService,
+    private notificationClient: NotificationServiceClient,
   ) {}
 
   async register(
@@ -120,6 +122,11 @@ export class AuthService {
       savedUser,
       ipAddress,
       userAgent,
+    );
+
+    await this.notificationClient.sendVerificationEmail(
+      savedUser.email,
+      loginResponse.accessToken,
     );
 
     this.logger.log(`User registered successfully: ${savedUser.id}`);
@@ -181,6 +188,19 @@ export class AuthService {
       userAgent,
       loginDto.rememberMe,
     );
+
+    try {
+      await this.notificationClient.sendLoginAlertEmail(
+        user.email,
+        user.firstName!,
+        ipAddress!,
+        userAgent!,
+        new Date(),
+      );
+    } catch (error) {
+      // Don't fail login if notification fails
+      this.logger.warn(`Failed to send login alert: ${error.message}`);
+    }
 
     this.logger.log(`User logged in successfully: ${user.id}`);
     return loginResponse;
@@ -275,8 +295,10 @@ export class AuthService {
     );
 
     // Send reset email
-    await this.emailService.sendPasswordResetEmail(user.email, resetToken);
-
+    await this.notificationClient.sendPasswordResetEmail(
+      user.email,
+      resetToken,
+    );
     this.logger.log(`Password reset requested for user: ${user.id}`);
   }
 
@@ -313,6 +335,12 @@ export class AuthService {
     // Invalidate all user sessions
     await this.logoutAll(user.id);
 
+    // Send password changed confirmation email
+    await this.notificationClient.sendPasswordChangedEmail(
+      user.email,
+      user.firstName!,
+    );
+
     this.logger.log(`Password reset successfully for user: ${user.id}`);
   }
 
@@ -345,6 +373,12 @@ export class AuthService {
 
     // Update password
     await this.userRepository.update(user.id, { passwordHash });
+
+    // Send password changed notification
+    await this.notificationClient.sendPasswordChangedEmail(
+      user.email,
+      user.firstName!,
+    );
 
     this.logger.log(`Password changed successfully for user: ${user.id}`);
   }

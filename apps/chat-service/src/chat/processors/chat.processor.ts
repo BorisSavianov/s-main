@@ -1,7 +1,7 @@
 // apps/chat-service/src/chat/processors/chat.processor.ts (continued)
 import { Processor, Process } from '@nestjs/bull';
 import { Job } from 'bull';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MailerService } from '@nestjs-modules/mailer';
@@ -10,7 +10,9 @@ import { ChatSession } from '../entities/chat-session.entity';
 import { ChatMessage, SenderType } from '../entities/chat-message.entity';
 import { ChatSessionSummary } from '../entities/chat-session-summary.entity';
 import { AIService } from '../../ai/ai.service';
+import { ClientProxy } from '@nestjs/microservices';
 
+// Define interfaces for job data
 interface SessionSetupJob {
   sessionId: string;
   userId?: string;
@@ -76,8 +78,8 @@ export class ChatProcessor {
     @InjectRepository(ChatSessionSummary)
     private chatSessionSummaryRepository: Repository<ChatSessionSummary>,
     private aiService: AIService,
-    private mailerService: MailerService,
     private eventEmitter: EventEmitter2,
+    @Inject('NOTIFICATION_SERVICE') private notificationClient: ClientProxy,
   ) {}
 
   @Process('session-setup')
@@ -230,7 +232,8 @@ How are you feeling today? What would you like to talk about?`,
         flagReason: flagReason,
       });
 
-      await this.notifyAdministrators({
+      // Use notification service via microservice
+      await this.sendAdminNotification({
         type: 'message_flagged',
         messageId,
         sessionId,
@@ -279,7 +282,8 @@ Your life has value and help is available. Please don't hesitate to reach out.`,
 
       await this.chatMessageRepository.save(interventionMessage);
 
-      await this.notifyAdministrators({
+      // Use notification service for admin alert
+      await this.sendAdminNotification({
         type: 'crisis_intervention',
         sessionId,
         messageId,
@@ -438,7 +442,7 @@ Your life has value and help is available. Please don't hesitate to reach out.`,
     // Implementation for archiving old session data
   }
 
-  private async notifyAdministrators(notification: {
+  private async sendAdminNotification(notification: {
     type: string;
     messageId?: string;
     sessionId?: string;
@@ -446,14 +450,23 @@ Your life has value and help is available. Please don't hesitate to reach out.`,
     severity: string;
   }): Promise<void> {
     try {
-      await this.mailerService.sendMail({
-        to: process.env.ADMIN_EMAIL || 'bsavyanov@gmail.com',
-        subject: `[${notification.severity.toUpperCase()}] Chat Service Alert`,
-        template: 'admin-notification',
-        context: notification,
-      });
+      // Send via notification service microservice
+      await this.notificationClient
+        .emit('admin.notification', {
+          type: notification.type,
+          messageId: notification.messageId,
+          sessionId: notification.sessionId,
+          reason: notification.reason,
+          severity: notification.severity,
+          timestamp: new Date(),
+          service: 'chat-service',
+        })
+        .toPromise();
+
+      this.logger.log('Admin notification sent successfully');
     } catch (error) {
-      this.logger.error(`Failed to notify administrators: ${error.message}`);
+      this.logger.error(`Failed to send admin notification: ${error.message}`);
+      // Fallback: could still work without notification service
     }
   }
 
@@ -464,14 +477,24 @@ Your life has value and help is available. Please don't hesitate to reach out.`,
     confidence: number;
   }): Promise<void> {
     try {
-      await this.mailerService.sendMail({
-        to: process.env.CRISIS_TEAM_EMAIL || 'bsavyanov@gmail.com',
-        subject: '🚨 URGENT - Crisis Intervention Required',
-        template: 'crisis-alert',
-        context: alert,
-      });
+      // Send via notification service microservice
+      await this.notificationClient
+        .emit('crisis.alert', {
+          sessionId: alert.sessionId,
+          messageId: alert.messageId,
+          crisisType: alert.crisisType,
+          confidence: alert.confidence,
+          timestamp: new Date(),
+          service: 'chat-service',
+          urgency: 'CRITICAL',
+        })
+        .toPromise();
+
+      this.logger.log('Crisis team alert sent successfully');
     } catch (error) {
       this.logger.error(`Failed to alert crisis team: ${error.message}`);
+      // This is critical, so we might want to have a fallback mechanism
+      throw error;
     }
   }
 

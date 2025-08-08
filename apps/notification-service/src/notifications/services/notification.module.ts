@@ -19,6 +19,7 @@ import {
 
 import { PreferencesModule } from '../../prefrences/services/prefrences.module';
 import { TemplateModule } from '../../templates/services/template.module';
+import { MailerService } from './mailer.service';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { TemplateModule } from '../../templates/services/template.module';
     NotificationService,
     NotificationProcessor,
     NotificationSchedulerService,
+    MailerService,
   ],
   exports: [NotificationService],
 })

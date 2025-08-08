@@ -1,0 +1,62 @@
+<!-- apps/notification-service/src/templates/email/account-deactivated.hbs -->
+
+<html lang='en'>
+  <head>
+    <meta charset='utf-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>Account Deactivated</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .header {
+        background: #dc2626;
+        color: white;
+        padding: 20px;
+        text-align: center;
+        border-radius: 10px 10px 0 0;
+      }
+      .content {
+        padding: 30px;
+        background: #f9fafb;
+        border-radius: 0 0 10px 10px;
+      }
+      .footer {
+        text-align: center;
+        padding: 20px;
+        color: #666;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class='container'>
+      <div class='header'>
+        <h1>Account Deactivated</h1>
+      </div>
+      <div class='content'>
+        <p>Hello {{userName}},</p>
+        <p>Your account has been deactivated as requested.</p>
+        <p>Your data will be retained for
+          {{reactivationPeriod}}
+          days in case you want to reactivate your account.</p>
+        <p>If you wish to reactivate your account, please contact our support
+          team at
+          {{supportEmail}}.</p>
+        <p>Thank you for using our mental health platform.</p>
+      </div>
+      <div class='footer'>
+        <p>Contact our support team at
+          {{supportEmail}}
+          if you have any questions.</p>
+      </div>
+    </div>
+  </body>
+</html>

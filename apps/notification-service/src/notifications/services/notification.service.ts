@@ -9,7 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, LessThanOrEqual, In } from 'typeorm';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
-import { MailerService } from '@nestjs-modules/mailer';
+import { MailerService } from './mailer.service';
 
 import {
   Notification,
@@ -202,29 +202,26 @@ export class NotificationService {
   ): Promise<void> {
     const { user, title, message, data } = notification;
 
-    let emailContent = { subject: title, text: message, html: message };
-
-    // Use template if specified
     if (data?.templateId) {
-      const renderedContent = await this.templateService.renderTemplate(
-        data.templateId,
-        data.templateData || {},
-        notification.type,
-      );
-      emailContent = {
-        subject: renderedContent.subject || title,
-        text: renderedContent.text || message,
-        html: renderedContent.html || message,
-      };
+      // Use template-based email
+      await this.mailerService.sendEmail({
+        to: user.email,
+        subject: title,
+        template: data.templateId,
+        context: {
+          userName: user.firstName,
+          ...data.templateData,
+        },
+      });
+    } else {
+      // Send plain email
+      await this.mailerService.sendEmail({
+        to: user.email,
+        subject: title,
+        html: message,
+        text: message.replace(/<[^>]*>/g, ''), // Strip HTML for text version
+      });
     }
-
-    await this.mailerService.sendMail({
-      to: user.email,
-      subject: emailContent.subject,
-      text: emailContent.text,
-      html: emailContent.html,
-      context: data?.templateData || {},
-    });
   }
 
   private async sendInAppNotification(
@@ -468,8 +465,12 @@ export class NotificationService {
     appointmentTime: string;
     counselorName: string;
     userName: string;
+    userEmail: string;
+    counselorEmail: string;
     reminderType?: string;
     minutesBefore?: number;
+    meetingRoomUrl?: string;
+    meetingType?: string;
   }): Promise<void> {
     const {
       userId,
@@ -478,37 +479,47 @@ export class NotificationService {
       ...data
     } = appointmentData;
 
-    // Send reminder to user
-    await this.sendNotification({
-      userId,
-      type: reminderType as NotificationType,
-      title: 'Upcoming Appointment Reminder',
-      message: `Hi ${data.userName}, you have an appointment with ${data.counselorName} on ${data.appointmentDate} at ${data.appointmentTime}.`,
-      category: 'appointments',
-      data: {
-        appointmentId: data.appointmentId,
-        counselorId,
-        templateId: 'appointment_reminder',
-        templateData: data,
-      },
-      immediate: true,
+    // Send reminder using unified mailer
+    await this.mailerService.sendAppointmentReminder({
+      userEmail: data.userEmail,
+      userName: data.userName,
+      counselorEmail: data.counselorEmail,
+      counselorName: data.counselorName,
+      appointmentId: data.appointmentId,
+      appointmentDate: data.appointmentDate,
+      appointmentTime: data.appointmentTime,
+      meetingRoomUrl: data.meetingRoomUrl,
+      minutesBefore: data.minutesBefore,
+      meetingType: data.meetingType,
     });
 
-    // Send reminder to counselor
-    await this.sendNotification({
-      userId: counselorId,
-      type: reminderType as NotificationType,
-      title: 'Upcoming Appointment Reminder',
-      message: `You have an appointment with ${data.userName} on ${data.appointmentDate} at ${data.appointmentTime}.`,
-      category: 'appointments',
-      data: {
-        appointmentId: data.appointmentId,
+    // Also create in-app notifications
+    await Promise.all([
+      this.sendNotification({
         userId,
-        templateId: 'appointment_reminder_counselor',
-        templateData: data,
-      },
-      immediate: true,
-    });
+        type: NotificationType.IN_APP,
+        title: 'Upcoming Appointment Reminder',
+        message: `You have an appointment with ${data.counselorName} on ${data.appointmentDate} at ${data.appointmentTime}.`,
+        category: 'appointments',
+        data: {
+          appointmentId: data.appointmentId,
+          counselorId,
+        },
+        immediate: true,
+      }),
+      this.sendNotification({
+        userId: counselorId,
+        type: NotificationType.IN_APP,
+        title: 'Upcoming Appointment Reminder',
+        message: `You have an appointment with ${data.userName} on ${data.appointmentDate} at ${data.appointmentTime}.`,
+        category: 'appointments',
+        data: {
+          appointmentId: data.appointmentId,
+          userId,
+        },
+        immediate: true,
+      }),
+    ]);
   }
 
   async sendAppointmentConfirmation(appointmentData: {
@@ -519,34 +530,47 @@ export class NotificationService {
     appointmentTime: string;
     counselorName: string;
     userName: string;
+    userEmail: string;
+    counselorEmail: string;
+    meetingType?: string;
+    duration?: number;
   }): Promise<void> {
     const { userId, counselorId, ...data } = appointmentData;
 
-    // Notify user
-    await this.sendNotification({
-      userId,
-      type: NotificationType.EMAIL,
-      title: 'Appointment Confirmed',
-      message: `Your appointment with ${data.counselorName} on ${data.appointmentDate} at ${data.appointmentTime} has been confirmed.`,
-      category: 'appointments',
-      data: {
-        appointmentId: data.appointmentId,
-        templateId: 'appointment_confirmed',
-        templateData: data,
-      },
-      immediate: true,
+    // Send confirmation using unified mailer
+    await this.mailerService.sendAppointmentConfirmation({
+      userEmail: data.userEmail,
+      userName: data.userName,
+      counselorEmail: data.counselorEmail,
+      counselorName: data.counselorName,
+      appointmentId: data.appointmentId,
+      appointmentDate: data.appointmentDate,
+      appointmentTime: data.appointmentTime,
+      meetingType: data.meetingType,
+      duration: data.duration,
     });
 
-    // Also send in-app notification
-    await this.sendNotification({
-      userId,
-      type: NotificationType.IN_APP,
-      title: 'Appointment Confirmed',
-      message: `Your appointment with ${data.counselorName} has been confirmed.`,
-      category: 'appointments',
-      data: { appointmentId: data.appointmentId },
-      immediate: true,
-    });
+    // Also send in-app notifications
+    await Promise.all([
+      this.sendNotification({
+        userId,
+        type: NotificationType.IN_APP,
+        title: 'Appointment Confirmed',
+        message: `Your appointment with ${data.counselorName} has been confirmed.`,
+        category: 'appointments',
+        data: { appointmentId: data.appointmentId },
+        immediate: true,
+      }),
+      this.sendNotification({
+        userId: counselorId,
+        type: NotificationType.IN_APP,
+        title: 'Appointment Confirmed',
+        message: `Your appointment with ${data.userName} has been confirmed.`,
+        category: 'appointments',
+        data: { appointmentId: data.appointmentId },
+        immediate: true,
+      }),
+    ]);
   }
 
   async sendAppointmentCancellation(appointmentData: {
@@ -557,41 +581,280 @@ export class NotificationService {
     appointmentTime: string;
     counselorName: string;
     userName: string;
+    userEmail: string;
+    counselorEmail: string;
     reason?: string;
     cancelledBy: 'user' | 'counselor';
   }): Promise<void> {
-    const { userId, counselorId, cancelledBy, ...data } = appointmentData;
+    const { userId, counselorId, ...data } = appointmentData;
 
-    const recipientId = cancelledBy === 'user' ? counselorId : userId;
-    const recipientName =
-      cancelledBy === 'user' ? data.counselorName : data.userName;
-    const cancellerName =
-      cancelledBy === 'user' ? data.userName : data.counselorName;
-
-    await this.sendNotification({
-      userId: recipientId,
-      type: NotificationType.EMAIL,
-      title: 'Appointment Cancelled',
-      message: `Your appointment with ${cancellerName} on ${data.appointmentDate} at ${data.appointmentTime} has been cancelled.${data.reason ? ` Reason: ${data.reason}` : ''}`,
-      category: 'appointments',
-      data: {
-        appointmentId: data.appointmentId,
-        templateId: 'appointment_cancelled',
-        templateData: { ...data, cancelledBy, reason: data.reason },
-      },
-      immediate: true,
+    // Send cancellation using unified mailer
+    await this.mailerService.sendAppointmentCancellation({
+      userEmail: data.userEmail,
+      userName: data.userName,
+      counselorEmail: data.counselorEmail,
+      counselorName: data.counselorName,
+      appointmentId: data.appointmentId,
+      appointmentDate: data.appointmentDate,
+      appointmentTime: data.appointmentTime,
+      reason: data.reason,
+      cancelledBy: data.cancelledBy,
     });
 
-    // Also send in-app notification
+    // Send in-app notification to the affected party
+    const recipientId = data.cancelledBy === 'user' ? counselorId : userId;
+    const recipientName =
+      data.cancelledBy === 'user' ? data.counselorName : data.userName;
+    const cancellerName =
+      data.cancelledBy === 'user' ? data.userName : data.counselorName;
+
     await this.sendNotification({
       userId: recipientId,
       type: NotificationType.IN_APP,
       title: 'Appointment Cancelled',
-      message: `Your appointment has been cancelled.`,
+      message: `Your appointment with ${cancellerName} has been cancelled.${data.reason ? ` Reason: ${data.reason}` : ''}`,
       category: 'appointments',
       data: { appointmentId: data.appointmentId },
       immediate: true,
     });
+  }
+
+  // Authentication-related notifications
+  async sendWelcomeNotification(
+    userId: string,
+    userEmail: string,
+    firstName: string,
+  ): Promise<void> {
+    // Send welcome email using unified mailer
+    await this.mailerService.sendWelcomeEmail(userEmail, firstName);
+
+    // Also send in-app welcome notification
+    await this.sendNotification({
+      userId,
+      type: NotificationType.IN_APP,
+      title: 'Welcome to Mental Health Platform',
+      message: `Welcome ${firstName}! Your account has been created successfully.`,
+      category: 'system',
+      data: {
+        isWelcomeMessage: true,
+      },
+      immediate: true,
+    });
+  }
+
+  async sendPasswordChangeNotification(
+    userId: string,
+    userEmail: string,
+    firstName: string,
+  ): Promise<void> {
+    // Send password change email using unified mailer
+    await this.mailerService.sendPasswordChangedEmail(userEmail, firstName);
+
+    // Send in-app notification
+    await this.sendNotification({
+      userId,
+      type: NotificationType.IN_APP,
+      title: 'Password Changed',
+      message: 'Your password has been changed successfully.',
+      category: 'security',
+      immediate: true,
+    });
+  }
+
+  async sendSecurityAlert(
+    userId: string,
+    userEmail: string,
+    firstName: string,
+    alertData: {
+      type: 'login' | 'suspicious_activity';
+      ipAddress?: string;
+      userAgent?: string;
+      activityType?: string;
+    },
+  ): Promise<void> {
+    const timestamp = new Date();
+
+    if (alertData.type === 'login') {
+      await this.mailerService.sendLoginAlertEmail(
+        userEmail,
+        firstName,
+        alertData.ipAddress!,
+        alertData.userAgent!,
+        timestamp,
+      );
+    } else {
+      await this.mailerService.sendSuspiciousActivityEmail(
+        userEmail,
+        firstName,
+        alertData.activityType!,
+        timestamp,
+      );
+    }
+
+    // Send in-app notification
+    await this.sendNotification({
+      userId,
+      type: NotificationType.IN_APP,
+      title:
+        alertData.type === 'login' ? 'New Login Detected' : 'Security Alert',
+      message:
+        alertData.type === 'login'
+          ? `New login from ${alertData.ipAddress}`
+          : `Suspicious activity detected: ${alertData.activityType}`,
+      category: 'security',
+      immediate: true,
+    });
+  }
+
+  // Admin and system notifications
+  async sendSystemAlert(alertData: {
+    type: string;
+    messageId?: string;
+    sessionId?: string;
+    reason: string;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    additionalData?: Record<string, any>;
+  }): Promise<void> {
+    await this.mailerService.sendAdminNotification(alertData);
+  }
+
+  async sendCrisisAlert(alertData: {
+    sessionId: string;
+    messageId: string;
+    crisisType: string;
+    confidence: number;
+    additionalData?: Record<string, any>;
+  }): Promise<void> {
+    await this.mailerService.sendCrisisAlert(alertData);
+  }
+
+  // Bulk operations using unified mailer
+  async sendBulkEmailNotification(data: {
+    userEmails: string[];
+    subject: string;
+    template: string;
+    context: Record<string, any>;
+  }): Promise<{ sent: number; failed: string[] }> {
+    return this.mailerService.sendBulkEmail(
+      data.userEmails,
+      data.subject,
+      data.template,
+      data.context,
+    );
+  }
+
+  // Newsletter and promotional emails
+  async sendNewsletterToUser(
+    userId: string,
+    userEmail: string,
+    userName: string,
+    newsletterData: {
+      title: string;
+      content: string;
+      unsubscribeUrl: string;
+      featuredArticles?: Array<{ title: string; url: string; excerpt: string }>;
+    },
+  ): Promise<void> {
+    await this.mailerService.sendNewsletterEmail(
+      userEmail,
+      userName,
+      newsletterData,
+    );
+
+    // Create in-app notification as well
+    await this.sendNotification({
+      userId,
+      type: NotificationType.IN_APP,
+      title: `Newsletter: ${newsletterData.title}`,
+      message: 'Your latest newsletter is ready to read.',
+      category: 'newsletter',
+      immediate: true,
+    });
+  }
+
+  async sendPromotionalEmail(
+    userId: string,
+    userEmail: string,
+    userName: string,
+    promotionData: {
+      title: string;
+      description: string;
+      ctaText: string;
+      ctaUrl: string;
+      expiryDate?: Date;
+      unsubscribeUrl: string;
+    },
+  ): Promise<void> {
+    await this.mailerService.sendPromotionalEmail(
+      userEmail,
+      userName,
+      promotionData,
+    );
+
+    // Create in-app notification
+    await this.sendNotification({
+      userId,
+      type: NotificationType.IN_APP,
+      title: promotionData.title,
+      message: promotionData.description,
+      category: 'promotional',
+      data: {
+        ctaUrl: promotionData.ctaUrl,
+        ctaText: promotionData.ctaText,
+      },
+      immediate: true,
+    });
+  }
+
+  // Feedback and survey requests
+  async sendFeedbackRequest(
+    userId: string,
+    userEmail: string,
+    userName: string,
+    feedbackData: {
+      appointmentId?: string;
+      counselorName?: string;
+      sessionDate?: Date;
+      surveyUrl: string;
+    },
+  ): Promise<void> {
+    await this.mailerService.sendFeedbackRequestEmail(
+      userEmail,
+      userName,
+      feedbackData,
+    );
+
+    // Create in-app notification
+    await this.sendNotification({
+      userId,
+      type: NotificationType.IN_APP,
+      title: "We'd love your feedback",
+      message: 'Please take a moment to share your experience with us.',
+      category: 'feedback',
+      data: {
+        surveyUrl: feedbackData.surveyUrl,
+        appointmentId: feedbackData.appointmentId,
+      },
+      immediate: true,
+    });
+  }
+
+  // Health check methods
+  async testEmailService(): Promise<{ isHealthy: boolean; message: string }> {
+    try {
+      const isHealthy = await this.mailerService.testEmailConnection();
+      return {
+        isHealthy,
+        message: isHealthy
+          ? 'Email service is working'
+          : 'Email service is not responding',
+      };
+    } catch (error) {
+      return {
+        isHealthy: false,
+        message: `Email service error: ${error.message}`,
+      };
+    }
   }
 
   // Scheduled tasks for processing pending notifications

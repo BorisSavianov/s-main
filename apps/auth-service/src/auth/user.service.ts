@@ -25,6 +25,7 @@ import {
   UserResponseDto,
   CounselorProfileResponseDto,
 } from './dto/auth.dto';
+import { NotificationServiceClient } from 'apps/notification-service/src/clients/notification-service.client';
 
 @Injectable()
 export class UserService {
@@ -40,6 +41,7 @@ export class UserService {
     private readonly redisService: RedisService,
     private readonly emailService: EmailService,
     private readonly sessionService: SessionService,
+    private readonly notificationClient: NotificationServiceClient,
   ) {}
 
   async getUserById(userId: string): Promise<UserResponseDto> {
@@ -118,6 +120,9 @@ export class UserService {
     // Invalidate user cache
     await this.redisService.invalidateUserCache(userId);
 
+    // Send welcome email
+    await this.notificationClient.sendWelcomeEmail(user.email, user.firstName!);
+
     this.logger.log(`Email verified for user: ${userId}`);
   }
 
@@ -151,6 +156,44 @@ export class UserService {
     );
 
     this.logger.log(`Verification email resent for user: ${userId}`);
+  }
+
+  async reportSuspiciousActivity(
+    userId: string,
+    activityType: string,
+    details?: Record<string, any>,
+  ): Promise<void> {
+    try {
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        this.logger.warn(
+          `Suspicious activity reported for non-existent user: ${userId}`,
+        );
+        return;
+      }
+
+      // Send suspicious activity alert
+      await this.notificationClient.sendSuspiciousActivityEmail(
+        user.email,
+        user.firstName!,
+        activityType,
+        new Date(),
+      );
+
+      this.logger.warn(
+        `Suspicious activity reported for user ${user.email}: ${activityType}`,
+        details,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to report suspicious activity: ${error.message}`,
+        error.stack,
+      );
+      // Don't throw error for this operation
+    }
   }
 
   async deactivateAccount(userId: string): Promise<void> {

@@ -5,8 +5,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
-import { MailerModule } from '@nestjs-modules/mailer';
-import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import {
@@ -19,6 +17,7 @@ import { NotificationModule } from './notifications/services/notification.module
 import { TemplateModule } from './templates/services/template.module';
 import { PreferencesModule } from './prefrences/services/prefrences.module';
 import { HealthModule } from './health/health.module';
+import { MailerModule } from './notifications/services/mailer.module';
 
 // Configuration
 import { NotificationServiceController } from './notification-service.controller';
@@ -35,7 +34,7 @@ import { User } from 'apps/auth-service/src/database/entities/user.entity';
 import { CounselorProfile } from 'apps/auth-service/src/database/entities/counselor-profile.entity';
 import { UserSession } from 'apps/auth-service/src/database/entities/user-session.entity';
 import { OAuthProvider } from 'apps/auth-service/src/database/entities/oauth-provider.entity';
-import { join } from 'path';
+import { NotificationServiceClient } from './clients/notification-service.client';
 
 @Module({
   imports: [
@@ -92,38 +91,6 @@ import { join } from 'path';
       inject: [ConfigService],
     }),
 
-    // Email configuration
-    MailerModule.forRootAsync({
-      useFactory: (configService: ConfigService) => ({
-        transport: {
-          host: configService.get('MAIL_HOST'),
-          port: configService.get('MAIL_PORT') || 465,
-          secure: configService.get('MAIL_SECURE') === 'true',
-          auth: {
-            user: configService.get('MAIL_USER'),
-            pass: configService.get('MAIL_PASS'),
-          },
-        },
-        defaults: {
-          from:
-            configService.get('MAIL_FROM_ADDRESS') ||
-            'noreply@mentalhealth.com' +
-              ' ' +
-              ' ' +
-              configService.get('MAIL_FROM_NAME') ||
-            'SerenitySpace',
-        },
-        template: {
-          dir: join(__dirname, '/src/templates/email'),
-          adapter: new HandlebarsAdapter(),
-          options: {
-            strict: true,
-          },
-        },
-      }),
-      inject: [ConfigService],
-    }),
-
     // Rate limiting
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
@@ -161,6 +128,7 @@ import { join } from 'path';
     }),
 
     // Feature Modules
+    MailerModule,
     NotificationModule,
     TemplateModule,
     PreferencesModule,
@@ -170,6 +138,7 @@ import { join } from 'path';
     AuthCoreModule,
   ],
   controllers: [NotificationServiceController],
-  providers: [PrometheusController],
+  providers: [PrometheusController, NotificationServiceClient],
+  exports: [MailerModule], // Export mailer for other services
 })
 export class NotificationServiceModule {}

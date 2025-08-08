@@ -53,4 +53,14 @@ export class AppointmentReminderDto {
   @IsInt()
   @Min(0)
   minutesBefore?: number;
+
+  @ApiPropertyOptional({ description: 'User email' })
+  @IsOptional()
+  @IsString()
+  userEmail: string;
+
+  @ApiPropertyOptional({ description: 'Counselor email' })
+  @IsOptional()
+  @IsString()
+  counselorEmail: string;
 }
