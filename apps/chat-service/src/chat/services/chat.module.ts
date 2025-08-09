@@ -164,7 +164,7 @@ import { NotificationModule } from 'apps/notification-service/src/notifications/
           from: `"${configService.get<string>('MAIL_FROM_NAME', 'Chat Service')}" <${configService.get<string>('MAIL_FROM_ADDRESS', 'noreply@example.com')}>`,
         },
         template: {
-          dir: join(__dirname, '../../templates/email'),
+          dir: join(__dirname, '..', '..', '..', 'templates', 'email'),
           adapter: new HandlebarsAdapter(),
           options: {
             strict: true,

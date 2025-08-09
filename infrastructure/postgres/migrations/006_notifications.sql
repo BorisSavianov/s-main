@@ -168,7 +168,15 @@ $$ LANGUAGE plpgsql;
 
 
 -- Insert default notification templates
-INSERT INTO notification_templates (template_name, template_category, subject_template, body_template, supported_channels, variables) VALUES
+INSERT INTO notification_templates (
+    template_name,
+    template_category,
+    subject_template,
+    body_template,
+    supported_channels,
+    variables
+) VALUES
+-- Existing ones
 ('appointment_reminder', 'appointments', 'Appointment Reminder', 'Hi {{user_name}}, you have an appointment with {{counselor_name}} on {{appointment_date}} at {{appointment_time}}.',
  ARRAY['email'::notification_type, 'sms'::notification_type, 'push'::notification_type], '["user_name", "counselor_name", "appointment_date", "appointment_time"]'),
 ('mood_reminder', 'mood_reminders', 'Daily Mood Check-in', 'Don''t forget to log your mood for today! It only takes a minute.',
@@ -180,7 +188,25 @@ INSERT INTO notification_templates (template_name, template_category, subject_te
 ('welcome', 'system', 'Welcome to Mental Health Support', 'Welcome {{user_name}}! We''re here to support you on your mental health journey.',
  ARRAY['email'::notification_type, 'in_app'::notification_type], '["user_name"]'),
 ('password_reset', 'system', 'Password Reset Request', 'Click the link below to reset your password: {{reset_link}}',
- ARRAY['email'::notification_type], '["user_name", "reset_link"]');
+ ARRAY['email'::notification_type], '["user_name", "reset_link"]'),
+
+-- New ones from missing templates
+('account_deactivated', 'system', 'Account Deactivated', 'Hello {{user_name}}, your account has been deactivated. Your data will be retained for {{reactivation_period}} days. Contact {{support_email}} to reactivate.',
+ ARRAY['email'::notification_type], '["user_name", "reactivation_period", "support_email"]'),
+('chat_service_alert', 'alerts', '[{{severity}}] Chat Service Alert', 'Type: {{type}}, Session ID: {{session_id}}, Message ID: {{message_id}}, Reason: {{reason}}',
+ ARRAY['email'::notification_type, 'push'::notification_type], '["severity", "type", "session_id", "message_id", "reason"]'),
+('crisis_intervention', 'alerts', '🚨 URGENT - Crisis Intervention Required', 'Session ID: {{session_id}}, Message ID: {{message_id}}, Crisis Type: {{crisis_type}}, Confidence: {{confidence}}',
+ ARRAY['email'::notification_type, 'push'::notification_type], '["session_id", "message_id", "crisis_type", "confidence"]'),
+('email_verification', 'system', 'Verify Your Email Address', 'Welcome to {{platform_name}}! Click here to verify your email: {{verification_url}}',
+ ARRAY['email'::notification_type], '["platform_name", "verification_url"]'),
+('password_changed', 'security', 'Password Changed Successfully', 'Hello {{user_name}}, your password was changed on {{timestamp}}. If this wasn''t you, contact {{support_email}} immediately.',
+ ARRAY['email'::notification_type, 'push'::notification_type], '["user_name", "timestamp", "support_email"]'),
+('suspicious_activity', 'security', 'Suspicious Activity Alert', 'Hello {{user_name}}, we detected suspicious activity: {{activity_type}} at {{timestamp}}. Review settings here: {{security_url}}.',
+ ARRAY['email'::notification_type, 'push'::notification_type], '["user_name", "activity_type", "timestamp", "security_url", "support_email"]'),
+('login_alert', 'security', 'New Login Alert', 'Hello {{user_name}}, we detected a new login to your account. Time: {{timestamp}}, IP Address: {{ip_address}}, Device: {{user_agent}}. If this was you, no action is needed. If you don''t recognize this login, please change your password immediately and contact {{support_email}}.',
+ ARRAY['email'::notification_type, 'push'::notification_type], '["user_name", "timestamp", "ip_address", "user_agent", "support_email"]');
+
+
 
 -- Insert default notification preferences for common categories
 INSERT INTO notification_preferences (user_id, notification_category, email_enabled, sms_enabled, push_enabled, in_app_enabled, frequency)

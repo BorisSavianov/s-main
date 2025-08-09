@@ -33,7 +33,7 @@ import { TemplateModule } from '../../templates/services/template.module';
           from: `${configService.get('MAIL_FROM_NAME', 'Mental Health Platform')} <${configService.get('MAIL_FROM_ADDRESS', 'noreply@mentalhealth.com')}>`,
         },
         template: {
-          dir: join(__dirname, '../templates/email'),
+          dir: join(__dirname, '..', '..', '..', 'templates', 'email'),
           adapter: new HandlebarsAdapter(),
           options: {
             strict: true,
@@ -41,7 +41,7 @@ import { TemplateModule } from '../../templates/services/template.module';
         },
         options: {
           partials: {
-            dir: join(__dirname, '../templates/email'),
+            dir: join(__dirname, '..', '..', '..', 'templates', 'email'),
             options: {
               strict: true,
             },
