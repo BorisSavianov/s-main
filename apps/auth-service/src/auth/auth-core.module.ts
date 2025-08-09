@@ -24,7 +24,6 @@ import { UserService } from './user.service';
 import { SessionService } from './session.service';
 import { OAuthService } from './oauth.service';
 import { PasswordService } from './password.service';
-import { EmailService } from './email.service';
 import { ConfigModule } from '../config/config.module';
 import { NotificationClientModule } from 'apps/notification-service/src/clients/client.module';
 import { NotificationServiceClient } from 'apps/notification-service/src/clients/notification-service.client';
@@ -48,7 +47,7 @@ import { join } from 'path';
     ConfigModule,
     DatabaseModule,
     RedisModule,
-    NotificationModule,
+
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -144,7 +143,6 @@ import { join } from 'path';
     SessionService,
     OAuthService,
     PasswordService,
-    EmailService,
     JwtStrategy,
     LocalStrategy,
     GoogleStrategy,

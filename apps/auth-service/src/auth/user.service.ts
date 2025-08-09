@@ -16,12 +16,10 @@ import { UserSession } from '../database/entities/user-session.entity';
 import { CounselorProfile } from '../database/entities/counselor-profile.entity';
 
 import { RedisService } from '../redis/redis.service';
-import { EmailService } from './email.service';
 import { SessionService } from './session.service';
 
 import {
   UpdateProfileDto,
-  CreateCounselorProfileDto,
   UserResponseDto,
   CounselorProfileResponseDto,
 } from './dto/auth.dto';
@@ -37,9 +35,7 @@ export class UserService {
     @InjectRepository(UserSession)
     private readonly sessionRepository: Repository<UserSession>,
     @InjectRepository(CounselorProfile)
-    private readonly counselorProfileRepository: Repository<CounselorProfile>,
     private readonly redisService: RedisService,
-    private readonly emailService: EmailService,
     private readonly sessionService: SessionService,
     private readonly notificationClient: NotificationServiceClient,
   ) {}
@@ -150,7 +146,7 @@ export class UserService {
     );
 
     // Send verification email
-    await this.emailService.sendVerificationEmail(
+    await this.notificationClient.sendVerificationEmail(
       user.email,
       verificationToken,
     );
@@ -239,100 +235,6 @@ export class UserService {
     await this.redisService.invalidateUserCache(userId);
 
     this.logger.log(`Account deleted for user: ${userId}`);
-  }
-
-  async createCounselorProfile(
-    userId: string,
-    createCounselorProfileDto: CreateCounselorProfileDto,
-  ): Promise<CounselorProfileResponseDto> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['counselorProfile'],
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    if (user.role !== UserRole.COUNSELOR) {
-      throw new ForbiddenException(
-        'User must be a counselor to create counselor profile',
-      );
-    }
-
-    if (user.counselorProfile) {
-      throw new ConflictException('Counselor profile already exists');
-    }
-
-    // Check if license number is already taken
-    const existingProfile = await this.counselorProfileRepository.findOne({
-      where: { licenseNumber: createCounselorProfileDto.licenseNumber },
-    });
-
-    if (existingProfile) {
-      throw new ConflictException('License number already exists');
-    }
-
-    // Create counselor profile
-    const counselorProfile = this.counselorProfileRepository.create({
-      ...createCounselorProfileDto,
-      userId,
-    });
-
-    const savedProfile =
-      await this.counselorProfileRepository.save(counselorProfile);
-
-    // Invalidate user cache
-    await this.redisService.invalidateUserCache(userId);
-
-    this.logger.log(`Counselor profile created for user: ${userId}`);
-
-    return this.transformToCounselorProfileResponse(savedProfile);
-  }
-
-  async updateCounselorProfile(
-    userId: string,
-    updateDto: Partial<CreateCounselorProfileDto>,
-  ): Promise<CounselorProfileResponseDto> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['counselorProfile'],
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    if (!user.counselorProfile) {
-      throw new NotFoundException('Counselor profile not found');
-    }
-
-    // Check if license number is being updated and is unique
-    if (
-      updateDto.licenseNumber &&
-      updateDto.licenseNumber !== user.counselorProfile.licenseNumber
-    ) {
-      const existingProfile = await this.counselorProfileRepository.findOne({
-        where: { licenseNumber: updateDto.licenseNumber },
-      });
-
-      if (existingProfile) {
-        throw new ConflictException('License number already exists');
-      }
-    }
-
-    // Update counselor profile
-    Object.assign(user.counselorProfile, updateDto);
-    const updatedProfile = await this.counselorProfileRepository.save(
-      user.counselorProfile,
-    );
-
-    // Invalidate user cache
-    await this.redisService.invalidateUserCache(userId);
-
-    this.logger.log(`Counselor profile updated for user: ${userId}`);
-
-    return this.transformToCounselorProfileResponse(updatedProfile);
   }
 
   async getUserSessions(userId: string): Promise<any[]> {

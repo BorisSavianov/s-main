@@ -44,6 +44,7 @@ import {
   UserResponseDto,
   ApiResponseDto,
 } from './dto/auth.dto';
+import { GetUser } from './decorators/get-user.decorator';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -110,8 +111,8 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout user' })
   @ApiResponse({ status: 200, description: 'Logout successful' })
-  async logout(@Request() req: any): Promise<ApiResponseDto> {
-    await this.authService.logout(req.user.sessionId);
+  async logout(@Body() sessionId: string): Promise<ApiResponseDto> {
+    await this.authService.logout(sessionId);
 
     return {
       success: true,
@@ -126,8 +127,8 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout from all devices' })
   @ApiResponse({ status: 200, description: 'Logged out from all devices' })
-  async logoutAll(@Request() req: any): Promise<ApiResponseDto> {
-    await this.authService.logoutAll(req.user.sub);
+  async logoutAll(@GetUser('userId') userId: string): Promise<ApiResponseDto> {
+    await this.authService.logoutAll(userId);
 
     return {
       success: true,
@@ -205,10 +206,10 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Password changed successfully' })
   @ApiResponse({ status: 401, description: 'Current password is incorrect' })
   async changePassword(
-    @Request() req: any,
     @Body() changePasswordDto: ChangePasswordDto,
+    @GetUser('userId') userId: string,
   ): Promise<ApiResponseDto> {
-    await this.authService.changePassword(req.user.sub, changePasswordDto);
+    await this.authService.changePassword(userId, changePasswordDto);
 
     return {
       success: true,
@@ -240,134 +241,14 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Resend verification email' })
   @ApiResponse({ status: 200, description: 'Verification email sent' })
-  async resendVerification(@Request() req: any): Promise<ApiResponseDto> {
-    await this.userService.resendVerificationEmail(req.user.sub);
+  async resendVerification(
+    @GetUser('userId') userId: string,
+  ): Promise<ApiResponseDto> {
+    await this.userService.resendVerificationEmail(userId);
 
     return {
       success: true,
       message: 'Verification email sent',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Get('profile')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get user profile' })
-  @ApiResponse({
-    status: 200,
-    description: 'User profile retrieved',
-    type: UserResponseDto,
-  })
-  async getProfile(
-    @Request() req: any,
-  ): Promise<ApiResponseDto<UserResponseDto>> {
-    const user = await this.userService.getUserById(req.user.sub);
-
-    return {
-      success: true,
-      message: 'User profile retrieved',
-      data: user,
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Patch('profile')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update user profile' })
-  @ApiResponse({
-    status: 200,
-    description: 'Profile updated successfully',
-    type: UserResponseDto,
-  })
-  async updateProfile(
-    @Request() req: any,
-    @Body() updateProfileDto: UpdateProfileDto,
-  ): Promise<ApiResponseDto<UserResponseDto>> {
-    const user = await this.userService.updateProfile(
-      req.user.sub,
-      updateProfileDto,
-    );
-
-    return {
-      success: true,
-      message: 'Profile updated successfully',
-      data: user,
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Delete('profile')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete user account' })
-  @ApiResponse({ status: 200, description: 'Account deleted successfully' })
-  async deleteAccount(@Request() req: any): Promise<ApiResponseDto> {
-    await this.userService.deleteAccount(req.user.sub);
-
-    return {
-      success: true,
-      message: 'Account deleted successfully',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Post('counselor-profile')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create counselor profile' })
-  @ApiResponse({
-    status: 201,
-    description: 'Counselor profile created successfully',
-  })
-  @ApiResponse({ status: 403, description: 'User must be a counselor' })
-  async createCounselorProfile(
-    @Request() req: any,
-    @Body() createCounselorProfileDto: CreateCounselorProfileDto,
-  ): Promise<ApiResponseDto> {
-    await this.userService.createCounselorProfile(
-      req.user.sub,
-      createCounselorProfileDto,
-    );
-
-    return {
-      success: true,
-      message: 'Counselor profile created successfully',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Get('sessions')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get user sessions' })
-  @ApiResponse({ status: 200, description: 'Sessions retrieved successfully' })
-  async getSessions(@Request() req: any): Promise<ApiResponseDto> {
-    const sessions = await this.userService.getUserSessions(req.user.sub);
-
-    return {
-      success: true,
-      message: 'Sessions retrieved successfully',
-      data: sessions,
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Delete('sessions/:sessionId')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Revoke specific session' })
-  @ApiResponse({ status: 200, description: 'Session revoked successfully' })
-  async revokeSession(
-    @Request() req: any,
-    @Query('sessionId') sessionId: string,
-  ): Promise<ApiResponseDto> {
-    await this.userService.revokeSession(req.user.sub, sessionId);
-
-    return {
-      success: true,
-      message: 'Session revoked successfully',
       timestamp: new Date().toISOString(),
     };
   }

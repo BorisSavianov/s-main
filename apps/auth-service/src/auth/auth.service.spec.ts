@@ -16,7 +16,6 @@ import { OAuthProvider } from '../database/entities/oauth-provider.entity';
 import { CounselorProfile } from '../database/entities/counselor-profile.entity';
 import { RedisService } from '../redis/redis.service';
 import { PasswordService } from './password.service';
-import { EmailService } from './email.service';
 import { SessionService } from './session.service';
 import { UserService } from './user.service';
 import { NotificationServiceClient } from 'apps/notification-service/src/clients/notification-service.client';
@@ -28,7 +27,6 @@ describe('AuthService', () => {
   let configService: jest.Mocked<ConfigService>;
   let redisService: jest.Mocked<RedisService>;
   let passwordService: jest.Mocked<PasswordService>;
-  let emailService: jest.Mocked<EmailService>;
   let sessionService: jest.Mocked<SessionService>;
   let userService: jest.Mocked<UserService>;
 
@@ -136,14 +134,6 @@ describe('AuthService', () => {
           },
         },
         {
-          provide: EmailService,
-          useValue: {
-            sendVerificationEmail: jest.fn(),
-            sendPasswordResetEmail: jest.fn(),
-            sendPasswordChangedEmail: jest.fn(),
-          },
-        },
-        {
           provide: SessionService,
           useValue: {
             createSession: jest.fn(),
@@ -178,7 +168,6 @@ describe('AuthService', () => {
     configService = module.get(ConfigService);
     redisService = module.get(RedisService);
     passwordService = module.get(PasswordService);
-    emailService = module.get(EmailService);
     sessionService = module.get(SessionService);
     userService = module.get(UserService);
   });
@@ -202,8 +191,9 @@ describe('AuthService', () => {
       userRepository.create.mockReturnValue(mockUser);
       userRepository.save.mockResolvedValue(mockUser);
       redisService.set.mockResolvedValue(undefined);
-      emailService.sendVerificationEmail.mockResolvedValue(undefined);
-      mockNotificationServiceClient.sendVerificationEmail.mockResolvedValue(undefined);
+      mockNotificationServiceClient.sendVerificationEmail.mockResolvedValue(
+        undefined,
+      );
       sessionService.createSession.mockResolvedValue({
         id: 'session-id',
       } as any);

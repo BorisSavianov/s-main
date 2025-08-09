@@ -13,7 +13,6 @@ import { User, UserRole } from '../database/entities/user.entity';
 import { UserSession } from '../database/entities/user-session.entity';
 import { CounselorProfile } from '../database/entities/counselor-profile.entity';
 import { RedisService } from '../redis/redis.service';
-import { EmailService } from './email.service';
 import { SessionService } from './session.service';
 import { NotificationServiceClient } from 'apps/notification-service/src/clients/notification-service.client';
 
@@ -27,7 +26,6 @@ describe('UserService', () => {
   let sessionRepository: jest.Mocked<Repository<UserSession>>;
   let counselorProfileRepository: jest.Mocked<Repository<CounselorProfile>>;
   let redisService: jest.Mocked<RedisService>;
-  let emailService: jest.Mocked<EmailService>;
   let sessionService: jest.Mocked<SessionService>;
 
   const mockUser = {
@@ -116,14 +114,6 @@ describe('UserService', () => {
           },
         },
         {
-          provide: EmailService,
-          useValue: {
-            sendVerificationEmail: jest.fn(),
-            sendPasswordResetEmail: jest.fn(),
-            sendPasswordChangedEmail: jest.fn(),
-          },
-        },
-        {
           provide: SessionService,
           useValue: {
             createSession: jest.fn(),
@@ -146,7 +136,6 @@ describe('UserService', () => {
       getRepositoryToken(CounselorProfile),
     );
     redisService = module.get(RedisService);
-    emailService = module.get(EmailService);
     sessionService = module.get(SessionService);
   });
 
@@ -255,80 +244,80 @@ describe('UserService', () => {
     });
   });
 
-  describe('createCounselorProfile', () => {
-    const createCounselorDto = {
-      licenseNumber: 'LIC123456',
-      specialties: ['Anxiety', 'Depression'],
-      qualifications: ['PhD in Clinical Psychology'],
-      experienceYears: 5,
-      bio: 'Experienced counselor',
-      hourlyRate: 100,
-      languages: ['English'],
-    };
+  // describe('createCounselorProfile', () => {
+  //   const createCounselorDto = {
+  //     licenseNumber: 'LIC123456',
+  //     specialties: ['Anxiety', 'Depression'],
+  //     qualifications: ['PhD in Clinical Psychology'],
+  //     experienceYears: 5,
+  //     bio: 'Experienced counselor',
+  //     hourlyRate: 100,
+  //     languages: ['English'],
+  //   };
 
-    it('should create counselor profile successfully', async () => {
-      const counselorUser = { ...mockUser, role: UserRole.COUNSELOR };
-      userRepository.findOne.mockResolvedValue(counselorUser);
-      counselorProfileRepository.findOne.mockResolvedValue(null);
-      counselorProfileRepository.create.mockReturnValue(mockCounselorProfile);
-      counselorProfileRepository.save.mockResolvedValue(mockCounselorProfile);
+  //   it('should create counselor profile successfully', async () => {
+  //     const counselorUser = { ...mockUser, role: UserRole.COUNSELOR };
+  //     userRepository.findOne.mockResolvedValue(counselorUser);
+  //     counselorProfileRepository.findOne.mockResolvedValue(null);
+  //     counselorProfileRepository.create.mockReturnValue(mockCounselorProfile);
+  //     counselorProfileRepository.save.mockResolvedValue(mockCounselorProfile);
 
-      const result = await service.createCounselorProfile(
-        mockUser.id,
-        createCounselorDto,
-      );
+  //     const result = await service.createCounselorProfile(
+  //       mockUser.id,
+  //       createCounselorDto,
+  //     );
 
-      expect(userRepository.findOne).toHaveBeenCalledWith({
-        where: { id: mockUser.id },
-        relations: ['counselorProfile'],
-      });
-      expect(counselorProfileRepository.findOne).toHaveBeenCalledWith({
-        where: { licenseNumber: createCounselorDto.licenseNumber },
-      });
-      expect(counselorProfileRepository.create).toHaveBeenCalledWith({
-        ...createCounselorDto,
-        userId: mockUser.id,
-      });
-      expect(counselorProfileRepository.save).toHaveBeenCalledWith(
-        mockCounselorProfile,
-      );
-      expect(result).toEqual(
-        expect.objectContaining({
-          id: mockCounselorProfile.id,
-          licenseNumber: mockCounselorProfile.licenseNumber,
-          specialties: mockCounselorProfile.specialties,
-        }),
-      );
-    });
+  //     expect(userRepository.findOne).toHaveBeenCalledWith({
+  //       where: { id: mockUser.id },
+  //       relations: ['counselorProfile'],
+  //     });
+  //     expect(counselorProfileRepository.findOne).toHaveBeenCalledWith({
+  //       where: { licenseNumber: createCounselorDto.licenseNumber },
+  //     });
+  //     expect(counselorProfileRepository.create).toHaveBeenCalledWith({
+  //       ...createCounselorDto,
+  //       userId: mockUser.id,
+  //     });
+  //     expect(counselorProfileRepository.save).toHaveBeenCalledWith(
+  //       mockCounselorProfile,
+  //     );
+  //     expect(result).toEqual(
+  //       expect.objectContaining({
+  //         id: mockCounselorProfile.id,
+  //         licenseNumber: mockCounselorProfile.licenseNumber,
+  //         specialties: mockCounselorProfile.specialties,
+  //       }),
+  //     );
+  //   });
 
-    it('should throw NotFoundException when user is not found', async () => {
-      userRepository.findOne.mockResolvedValue(null);
+  //   it('should throw NotFoundException when user is not found', async () => {
+  //     userRepository.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.createCounselorProfile('nonexistent-id', createCounselorDto),
-      ).rejects.toThrow(NotFoundException);
-    });
+  //     await expect(
+  //       service.createCounselorProfile('nonexistent-id', createCounselorDto),
+  //     ).rejects.toThrow(NotFoundException);
+  //   });
 
-    it('should throw ForbiddenException when user is not a counselor', async () => {
-      userRepository.findOne.mockResolvedValue(mockUser);
+  //   it('should throw ForbiddenException when user is not a counselor', async () => {
+  //     userRepository.findOne.mockResolvedValue(mockUser);
 
-      await expect(
-        service.createCounselorProfile(mockUser.id, createCounselorDto),
-      ).rejects.toThrow(ForbiddenException);
-    });
+  //     await expect(
+  //       service.createCounselorProfile(mockUser.id, createCounselorDto),
+  //     ).rejects.toThrow(ForbiddenException);
+  //   });
 
-    it('should throw ConflictException when counselor profile already exists', async () => {
-      const counselorUser = { ...mockUser, role: UserRole.COUNSELOR };
-      userRepository.findOne.mockResolvedValue(counselorUser);
-      counselorProfileRepository.findOne.mockResolvedValue(
-        mockCounselorProfile,
-      );
+  //   it('should throw ConflictException when counselor profile already exists', async () => {
+  //     const counselorUser = { ...mockUser, role: UserRole.COUNSELOR };
+  //     userRepository.findOne.mockResolvedValue(counselorUser);
+  //     counselorProfileRepository.findOne.mockResolvedValue(
+  //       mockCounselorProfile,
+  //     );
 
-      await expect(
-        service.createCounselorProfile(mockUser.id, createCounselorDto),
-      ).rejects.toThrow(ConflictException);
-    });
-  });
+  //     await expect(
+  //       service.createCounselorProfile(mockUser.id, createCounselorDto),
+  //     ).rejects.toThrow(ConflictException);
+  //   });
+  // });
 
   describe('deactivateAccount', () => {
     it('should deactivate account successfully', async () => {

@@ -22,7 +22,6 @@ import { CounselorProfile } from '../database/entities/counselor-profile.entity'
 
 import { RedisService } from '../redis/redis.service';
 import { PasswordService } from './password.service';
-import { EmailService } from './email.service';
 import { SessionService } from './session.service';
 import { UserService } from './user.service';
 import { NotificationServiceClient } from 'apps/notification-service/src/clients/notification-service.client';
@@ -74,7 +73,6 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
     private readonly passwordService: PasswordService,
-    private readonly emailService: EmailService,
     private readonly sessionService: SessionService,
     private readonly userService: UserService,
     private notificationClient: NotificationServiceClient,
@@ -121,9 +119,19 @@ export class AuthService {
       userAgent,
     );
 
+    // Generate verification token
+    const verificationToken = uuidv4();
+
+    // Store verification token in Redis (24 hours)
+    await this.redisService.set(
+      `email_verification:${verificationToken}`,
+      savedUser.id,
+      86400, // 24 hours
+    );
+
     await this.notificationClient.sendVerificationEmail(
       savedUser.email,
-      loginResponse.accessToken,
+      verificationToken,
     );
 
     this.logger.log(`User registered successfully: ${savedUser.id}`);
@@ -526,24 +534,6 @@ export class AuthService {
       expiresIn: this.getTokenExpiresIn(),
       user: userResponse,
     };
-  }
-
-  private async sendVerificationEmail(user: User): Promise<void> {
-    // Generate verification token
-    const verificationToken = uuidv4();
-
-    // Store verification token in Redis (24 hours)
-    await this.redisService.set(
-      `email_verification:${verificationToken}`,
-      user.id,
-      86400, // 24 hours
-    );
-
-    // Send verification email
-    await this.emailService.sendVerificationEmail(
-      user.email,
-      verificationToken,
-    );
   }
 
   private getTokenExpiresIn(): number {

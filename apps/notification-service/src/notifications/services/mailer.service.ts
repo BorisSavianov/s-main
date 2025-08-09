@@ -73,7 +73,7 @@ export class MailerService {
           'PLATFORM_NAME',
           'Serenity Space',
         ),
-        verification_url: `${this.configService.get<string>('FRONTEND_URL')}/verify-email?token=${token}`,
+        verification_url: `${this.configService.get<string>('FRONTEND_URL')}api/v1/auth/verify-email?token=${token}`,
       };
 
       const rendered = await this.templateService.renderTemplate(
@@ -104,7 +104,7 @@ export class MailerService {
     try {
       const templateData = {
         user_name: email.split('@')[0], // Use email username as fallback
-        reset_link: `${this.configService.get<string>('FRONTEND_URL')}/reset-password?token=${token}`,
+        reset_link: `${this.configService.get<string>('FRONTEND_URL')}api/v1/auth/reset-password?token=${token}`,
       };
 
       const rendered = await this.templateService.renderTemplate(
@@ -292,7 +292,7 @@ export class MailerService {
         user_name: firstName,
         activity_type: activityType,
         timestamp: timestamp.toLocaleString(),
-        security_url: `${this.configService.get<string>('FRONTEND_URL')}/security`,
+        security_url: `${this.configService.get<string>('FRONTEND_URL')}api/v1/auth/security`,
         support_email: this.configService.get<string>(
           'SUPPORT_EMAIL',
           'support@serenityspace.app',
