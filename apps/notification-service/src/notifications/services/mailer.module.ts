@@ -41,7 +41,7 @@ import { TemplateModule } from '../../templates/services/template.module';
         },
         options: {
           partials: {
-            dir: join(__dirname, '../templates/email/partials'),
+            dir: join(__dirname, '../templates/email'),
             options: {
               strict: true,
             },

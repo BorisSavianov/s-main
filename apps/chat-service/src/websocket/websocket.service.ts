@@ -4,6 +4,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Server, Socket } from 'socket.io';
 import { ClientProxy } from '@nestjs/microservices';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 
 import { ChatSession } from '../chat/entities/chat-session.entity';
 import { ChatMessage } from '../chat/entities/chat-message.entity';
@@ -33,6 +35,12 @@ export class WebSocketService {
     private readonly contextRepository: Repository<AiContext>,
     @Inject('AUTH_SERVICE')
     private readonly authService: ClientProxy,
+    @InjectQueue('message-processing')
+    private readonly messageProcessingQueue: Queue,
+    @InjectQueue('ai-response')
+    private readonly aiResponseQueue: Queue,
+    @InjectQueue('analytics')
+    private readonly analyticsQueue: Queue,
   ) {}
 
   setServer(server: Server) {
@@ -185,13 +193,22 @@ export class WebSocketService {
     userId: string,
   ): Promise<void> {
     try {
-      // This would typically update a read_receipts table
-      // For now, we'll just emit an event
-      await this.messageQueue.emit('messages_read', {
-        messageIds,
-        userId,
-        timestamp: new Date(),
-      });
+      // Queue the read receipt processing
+      await this.analyticsQueue.add(
+        'messages-read',
+        {
+          messageIds,
+          userId,
+          timestamp: new Date(),
+        },
+        {
+          priority: 5, // Medium priority
+          delay: 0,
+          attempts: 3,
+          removeOnComplete: 100,
+          removeOnFail: 50,
+        },
+      );
     } catch (error) {
       this.logger.error(`Mark messages as read failed: ${error.message}`);
     }
@@ -258,24 +275,36 @@ export class WebSocketService {
       // Get recent conversation history
       const recentMessages = await this.getRecentMessages(sessionId, 10);
 
-      // Send request to AI service
-      const aiResponse = await this.messageQueue
-        .send('generate_ai_response', {
+      // Add AI response job to queue with high priority
+      const job = await this.aiResponseQueue.add(
+        'generate-response',
+        {
           sessionId,
           userMessage,
           context,
           conversationHistory: recentMessages,
-        })
-        .toPromise();
+        },
+        {
+          priority: 1, // High priority
+          delay: 0,
+          attempts: 3,
+          removeOnComplete: 50,
+          removeOnFail: 25,
+          timeout: 30000, // 30 seconds timeout
+        },
+      );
+
+      // Wait for the job to complete
+      const result = await job.finished();
 
       // Update AI context with new interaction
       await this.updateAIContext(sessionId, {
         lastUserMessage: userMessage,
-        lastAIResponse: aiResponse.content,
+        lastAIResponse: result.content,
         interactionCount: (context.contextData?.interactionCount || 0) + 1,
       });
 
-      return aiResponse.content;
+      return result.content;
     } catch (error) {
       this.logger.error(`Generate AI response failed: ${error.message}`);
       return "I'm sorry, I'm having trouble processing your message right now. Please try again or speak with a human counselor.";
@@ -380,26 +409,80 @@ export class WebSocketService {
   }
 
   /**
-   * Queue message for processing
+   * Queue message for processing using Bull
    */
   private async queueMessageForProcessing(message: ChatMessage): Promise<void> {
     try {
-      // Queue for sentiment analysis
-      await this.messageQueue.emit('analyze_sentiment', {
-        messageId: message.id,
-        content: message.content,
-      });
+      // Queue for sentiment analysis with high priority
+      await this.messageProcessingQueue.add(
+        'analyze-sentiment',
+        {
+          messageId: message.id,
+          content: message.content,
+          sessionId: message.sessionId,
+        },
+        {
+          priority: 2,
+          delay: 0,
+          attempts: 3,
+          removeOnComplete: 100,
+          removeOnFail: 50,
+        },
+      );
 
-      // Queue for content moderation
-      await this.messageQueue.emit('moderate_content', {
-        messageId: message.id,
-        content: message.content,
-      });
+      // Queue for content moderation with highest priority
+      await this.messageProcessingQueue.add(
+        'moderate-content',
+        {
+          messageId: message.id,
+          content: message.content,
+          sessionId: message.sessionId,
+          senderId: message.senderId,
+          senderType: message.senderType,
+        },
+        {
+          priority: 1, // Highest priority for safety
+          delay: 0,
+          attempts: 2,
+          removeOnComplete: 100,
+          removeOnFail: 50,
+        },
+      );
 
-      // Queue for search indexing
-      await this.messageQueue.emit('index_message', {
-        messageId: message.id,
-      });
+      // Queue for search indexing with lower priority
+      await this.messageProcessingQueue.add(
+        'index-message',
+        {
+          messageId: message.id,
+          sessionId: message.sessionId,
+          content: message.content,
+          senderType: message.senderType,
+        },
+        {
+          priority: 10, // Lower priority
+          delay: 5000, // 5 second delay
+          attempts: 2,
+          removeOnComplete: 50,
+          removeOnFail: 25,
+        },
+      );
+
+      // Queue analytics update
+      await this.analyticsQueue.add(
+        'update-session-metrics',
+        {
+          sessionId: message.sessionId,
+          messageId: message.id,
+          senderType: message.senderType,
+        },
+        {
+          priority: 8,
+          delay: 2000, // 2 second delay
+          attempts: 2,
+          removeOnComplete: 100,
+          removeOnFail: 50,
+        },
+      );
     } catch (error) {
       this.logger.error(`Queue message processing failed: ${error.message}`);
     }
@@ -416,6 +499,23 @@ export class WebSocketService {
           isActive: false,
           endedAt: new Date(),
           summary: `Session ended: ${reason}`,
+        },
+      );
+
+      // Queue session cleanup and analytics
+      await this.analyticsQueue.add(
+        'session-ended',
+        {
+          sessionId,
+          reason,
+          endedAt: new Date(),
+        },
+        {
+          priority: 3,
+          delay: 0,
+          attempts: 2,
+          removeOnComplete: 100,
+          removeOnFail: 50,
         },
       );
 
@@ -458,6 +558,116 @@ export class WebSocketService {
     } catch (error) {
       this.logger.error(`Get session stats failed: ${error.message}`);
       return null;
+    }
+  }
+
+  /**
+   * Add job to queue for AI response processing with callback
+   */
+  async queueAIResponse(
+    sessionId: string,
+    userMessage: string,
+    callback?: (response: string) => void,
+  ): Promise<void> {
+    try {
+      const context = await this.getAIContext(sessionId);
+      const recentMessages = await this.getRecentMessages(sessionId, 10);
+
+      const job = await this.aiResponseQueue.add(
+        'generate-response',
+        {
+          sessionId,
+          userMessage,
+          context,
+          conversationHistory: recentMessages,
+        },
+        {
+          priority: 1,
+          delay: 0,
+          attempts: 3,
+          removeOnComplete: 50,
+          removeOnFail: 25,
+          timeout: 30000,
+        },
+      );
+
+      // If callback provided, wait for completion
+      if (callback) {
+        job
+          .finished()
+          .then((result) => {
+            callback(result.content);
+          })
+          .catch((error) => {
+            this.logger.error(`AI response job failed: ${error.message}`);
+            callback(
+              "I'm sorry, I'm having trouble processing your message right now. Please try again or speak with a human counselor.",
+            );
+          });
+      }
+    } catch (error) {
+      this.logger.error(`Queue AI response failed: ${error.message}`);
+      if (callback) {
+        callback(
+          "I'm sorry, I'm having trouble processing your message right now. Please try again or speak with a human counselor.",
+        );
+      }
+    }
+  }
+
+  /**
+   * Get queue statistics for monitoring
+   */
+  async getQueueStats(): Promise<any> {
+    try {
+      const messageProcessingStats =
+        await this.messageProcessingQueue.getJobCounts();
+      const aiResponseStats = await this.aiResponseQueue.getJobCounts();
+      const analyticsStats = await this.analyticsQueue.getJobCounts();
+
+      return {
+        messageProcessing: messageProcessingStats,
+        aiResponse: aiResponseStats,
+        analytics: analyticsStats,
+        totalJobs: {
+          waiting:
+            messageProcessingStats.waiting +
+            aiResponseStats.waiting +
+            analyticsStats.waiting,
+          active:
+            messageProcessingStats.active +
+            aiResponseStats.active +
+            analyticsStats.active,
+          completed:
+            messageProcessingStats.completed +
+            aiResponseStats.completed +
+            analyticsStats.completed,
+          failed:
+            messageProcessingStats.failed +
+            aiResponseStats.failed +
+            analyticsStats.failed,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Get queue stats failed: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Clear failed jobs from queues
+   */
+  async clearFailedJobs(): Promise<void> {
+    try {
+      await Promise.all([
+        this.messageProcessingQueue.clean(0, 'failed'),
+        this.aiResponseQueue.clean(0, 'failed'),
+        this.analyticsQueue.clean(0, 'failed'),
+      ]);
+
+      this.logger.log('Cleared failed jobs from all queues');
+    } catch (error) {
+      this.logger.error(`Clear failed jobs failed: ${error.message}`);
     }
   }
 }

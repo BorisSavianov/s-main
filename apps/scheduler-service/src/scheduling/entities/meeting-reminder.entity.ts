@@ -1,3 +1,4 @@
+// src/scheduling/entities/meeting-reminder.entity.ts
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -10,7 +11,6 @@ import {
 import { ScheduledMeeting } from './scheduled-meeting.entity';
 import { User } from 'apps/user-service/src/database/entities/user.entity';
 
-// src/scheduling/entities/meeting-reminder.entity.ts
 export enum ReminderType {
   EMAIL = 'email',
   SMS = 'sms',

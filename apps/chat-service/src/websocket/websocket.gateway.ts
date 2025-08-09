@@ -135,6 +135,12 @@ export class WebSocketGateway
     }
   }
 
+  @SubscribeMessage('testEvent')
+  async testEvent(@ConnectedSocket() client: Socket, @MessageBody() data: any) {
+    this.logger.log(`testEvent received: ${JSON.stringify(data)}`);
+    client.emit('testResponse', { received: true });
+  }
+
   @SubscribeMessage('joinSession')
   @UseGuards(WsThrottleGuard)
   async handleJoinSession(
