@@ -19,6 +19,7 @@ import { PasswordService } from './password.service';
 import { EmailService } from './email.service';
 import { SessionService } from './session.service';
 import { UserService } from './user.service';
+import { NotificationServiceClient } from 'apps/notification-service/src/clients/notification-service.client';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -30,6 +31,10 @@ describe('AuthService', () => {
   let emailService: jest.Mocked<EmailService>;
   let sessionService: jest.Mocked<SessionService>;
   let userService: jest.Mocked<UserService>;
+
+  const mockNotificationServiceClient = {
+    sendVerificationEmail: jest.fn(),
+  };
 
   const mockUser = {
     id: '123e4567-e89b-12d3-a456-426614174000',
@@ -160,6 +165,10 @@ describe('AuthService', () => {
             updateLastLogin: jest.fn(),
           },
         },
+        {
+          provide: NotificationServiceClient,
+          useValue: mockNotificationServiceClient,
+        },
       ],
     }).compile();
 
@@ -194,6 +203,7 @@ describe('AuthService', () => {
       userRepository.save.mockResolvedValue(mockUser);
       redisService.set.mockResolvedValue(undefined);
       emailService.sendVerificationEmail.mockResolvedValue(undefined);
+      mockNotificationServiceClient.sendVerificationEmail.mockResolvedValue(undefined);
       sessionService.createSession.mockResolvedValue({
         id: 'session-id',
       } as any);

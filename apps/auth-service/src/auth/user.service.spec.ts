@@ -15,6 +15,11 @@ import { CounselorProfile } from '../database/entities/counselor-profile.entity'
 import { RedisService } from '../redis/redis.service';
 import { EmailService } from './email.service';
 import { SessionService } from './session.service';
+import { NotificationServiceClient } from 'apps/notification-service/src/clients/notification-service.client';
+
+const mockNotificationServiceClient = {
+  sendVerificationEmail: jest.fn(),
+};
 
 describe('UserService', () => {
   let service: UserService;
@@ -126,6 +131,10 @@ describe('UserService', () => {
             invalidateSession: jest.fn(),
             invalidateAllUserSessions: jest.fn(),
           },
+        },
+        {
+          provide: NotificationServiceClient,
+          useValue: mockNotificationServiceClient,
         },
       ],
     }).compile();
