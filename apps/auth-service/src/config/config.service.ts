@@ -201,10 +201,10 @@ export class AppConfigService {
   get database(): DatabaseConfig {
     return {
       url: this.configService.get<string>('DATABASE_URL', ''),
-      host: this.configService.get<string>('DATABASE_HOST', 'localhost'),
-      port: this.configService.get<number>('DATABASE_PORT', 5432),
-      username: this.configService.get<string>('DATABASE_USERNAME', 'postgres'),
-      password: this.configService.get<string>('DATABASE_PASSWORD', ''),
+      host: this.configService.get<string>('DB_HOST', 'localhost'),
+      port: this.configService.get<number>('DB_PORT', 5432),
+      username: this.configService.get<string>('POSTGRES_USER', 'postgres'),
+      password: this.configService.get<string>('POSTGRES_PASSWORD', ''),
       database: this.configService.get<string>(
         'DATABASE_NAME',
         'mental_health_auth',
@@ -280,32 +280,6 @@ export class AppConfigService {
         'mental-health-platform',
       ),
       algorithm: this.configService.get<string>('JWT_ALGORITHM', 'HS256'),
-    };
-  }
-
-  // Email Configuration
-  get email(): EmailConfig {
-    return {
-      host: this.configService.get<string>('SMTP_HOST', 'smtp.gmail.com'),
-      port: this.configService.get<number>('SMTP_PORT', 587),
-      secure: this.configService.get<boolean>('SMTP_SECURE', false),
-      user: this.configService.get<string>('SMTP_USER', ''),
-      password: this.configService.get<string>('SMTP_PASSWORD', ''),
-      from: this.configService.get<string>(
-        'SMTP_FROM',
-        'noreply@mentalhealth.com',
-      ),
-      replyTo: this.configService.get<string>('SMTP_REPLY_TO'),
-      templates: {
-        baseUrl: this.configService.get<string>(
-          'EMAIL_TEMPLATE_BASE_URL',
-          this.app.frontendUrl,
-        ),
-        assetsUrl: this.configService.get<string>(
-          'EMAIL_ASSETS_URL',
-          `${this.app.frontendUrl}/assets`,
-        ),
-      },
     };
   }
 
@@ -517,7 +491,7 @@ export class AppConfigService {
       DATABASE_HOST: Joi.string().default('localhost'),
       DATABASE_PORT: Joi.number().port().default(5432),
       DATABASE_USERNAME: Joi.string().default('postgres'),
-      DATABASE_PASSWORD: Joi.string().when('NODE_ENV', {
+      POSTGRES_PASSWORD: Joi.string().when('NODE_ENV', {
         is: 'production',
         then: Joi.required(),
         otherwise: Joi.optional(),
@@ -553,22 +527,6 @@ export class AppConfigService {
       JWT_REFRESH_EXPIRES_IN: Joi.string().default('7d'),
       JWT_ISSUER: Joi.string().default('mental-health-auth'),
       JWT_AUDIENCE: Joi.string().default('mental-health-platform'),
-
-      // Email
-      SMTP_HOST: Joi.string().default('smtp.gmail.com'),
-      SMTP_PORT: Joi.number().port().default(587),
-      SMTP_SECURE: Joi.boolean().default(false),
-      SMTP_USER: Joi.string().when('NODE_ENV', {
-        is: 'production',
-        then: Joi.required(),
-        otherwise: Joi.optional(),
-      }),
-      SMTP_PASSWORD: Joi.string().when('NODE_ENV', {
-        is: 'production',
-        then: Joi.required(),
-        otherwise: Joi.optional(),
-      }),
-      SMTP_FROM: Joi.string().email().default('noreply@mentalhealth.com'),
 
       // OAuth
       GOOGLE_CLIENT_ID: Joi.string().optional(),
@@ -639,7 +597,7 @@ export const configFactory = () => ({
     host: process.env.DATABASE_HOST || 'localhost',
     port: parseInt(process.env.DATABASE_PORT || '5432', 10),
     username: process.env.DATABASE_USERNAME || 'postgres',
-    password: process.env.DATABASE_PASSWORD,
+    password: process.env.POSTGRES_PASSWORD,
     database: process.env.DATABASE_NAME || 'mental_health_auth',
     ssl: process.env.DATABASE_SSL === 'true',
     logging: process.env.DATABASE_LOGGING === 'true',
@@ -660,14 +618,6 @@ export const configFactory = () => ({
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
     issuer: process.env.JWT_ISSUER || 'mental-health-auth',
     audience: process.env.JWT_AUDIENCE || 'mental-health-platform',
-  },
-  email: {
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587', 10),
-    secure: process.env.SMTP_SECURE === 'true',
-    user: process.env.SMTP_USER,
-    password: process.env.SMTP_PASSWORD,
-    from: process.env.SMTP_FROM || 'noreply@mentalhealth.com',
   },
   oauth: {
     google: {

@@ -114,9 +114,6 @@ export class AuthService {
 
     const savedUser = await this.userRepository.save(user);
 
-    // Send verification email
-    await this.sendVerificationEmail(savedUser);
-
     // Create session and return tokens
     const loginResponse = await this.createUserSession(
       savedUser,

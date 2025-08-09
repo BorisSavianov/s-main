@@ -13,41 +13,40 @@ import { TemplateModule } from '../../templates/services/template.module';
     ConfigModule,
     TemplateModule,
     NestMailerModule.forRootAsync({
-      useFactory: (configService: ConfigService) => ({
-        transport: {
-          host: configService.get('MAIL_HOST', 'smtp.gmail.com'),
-          port: configService.get<number>('MAIL_PORT', 465),
-          secure: configService.get<boolean>('MAIL_SECURE', true),
-          auth: {
-            user: configService.get('MAIL_USER'),
-            pass: configService.get('MAIL_PASS'),
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => {
+        // Build the correct path for email templates
+        // In development: src/templates/email
+        // In production: dist/templates/email
+        const templateDir =
+          process.env.NODE_ENV === 'production'
+            ? join(process.cwd(), 'dist', 'templates', 'email')
+            : join(process.cwd(), 'dist', 'templates', 'email'); // : join(__dirname, '..', '..', '..', 'templates', 'email');
+
+        console.log(`Email templates directory: ${templateDir}`);
+
+        return {
+          transport: {
+            host: configService.get<string>('MAIL_HOST', 'smtp.gmail.com'),
+            port: configService.get<number>('MAIL_PORT', 465),
+            secure: configService.get<boolean>('MAIL_SECURE', true),
+            auth: {
+              user: configService.get<string>('MAIL_USER'),
+              pass: configService.get<string>('MAIL_PASS'),
+            },
           },
-          // Additional SMTP options
-          pool: true,
-          maxConnections: 5,
-          maxMessages: 100,
-          rateDelta: 1000,
-          rateLimit: 5,
-        },
-        defaults: {
-          from: `${configService.get('MAIL_FROM_NAME', 'Mental Health Platform')} <${configService.get('MAIL_FROM_ADDRESS', 'noreply@mentalhealth.com')}>`,
-        },
-        template: {
-          dir: join(__dirname, '..', '..', '..', 'templates', 'email'),
-          adapter: new HandlebarsAdapter(),
-          options: {
-            strict: true,
+          defaults: {
+            from: `"${configService.get<string>('MAIL_FROM_NAME', 'Chat Service')}" <${configService.get<string>('MAIL_FROM_ADDRESS', 'noreply@example.com')}>`,
           },
-        },
-        options: {
-          partials: {
-            dir: join(__dirname, '..', '..', '..', 'templates', 'email'),
+          template: {
+            dir: templateDir,
+            adapter: new HandlebarsAdapter(),
             options: {
               strict: true,
             },
           },
-        },
-      }),
+        };
+      },
       inject: [ConfigService],
     }),
   ],
