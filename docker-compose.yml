@@ -63,29 +63,6 @@ services:
     networks:
       - serenity_space_network
 
-  # Message Queue
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: serenity_space_rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
-      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST}
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-      - ./infrastructure/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins
-    ports:
-      - '5672:5672' # AMQP port
-      - '15672:15672' # Management UI
-    healthcheck:
-      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-    networks:
-      - serenity_space_network
-
   # Core Backend Services
   auth-service:
     build:
@@ -186,7 +163,6 @@ services:
       - PORT_AUTH=${PORT_AUTH}
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
-      - RABBITMQ_URL=${RABBITMQ_URL}
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - MAIL_HOST=${MAIL_HOST}
@@ -339,8 +315,6 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
       auth-service:
         condition: service_started
@@ -618,8 +592,6 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
-    driver: local
-  rabbitmq_data:
     driver: local
   ollama_data:
     driver: local

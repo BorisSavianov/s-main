@@ -138,20 +138,6 @@ import { HealthModule } from './health/health.module';
         }),
         inject: [AppConfigService],
       },
-      ...(process.env.RABBITMQ_URL
-        ? [
-            {
-              name: 'RABBITMQ_SERVICE',
-              imports: [AppConfigModule],
-              useFactory: (cfg: AppConfigService): RmqOptions => {
-                const rmq = cfg.rabbitmqConfig;
-                if (!rmq) throw new Error('RabbitMQ configuration is missing');
-                return { transport: Transport.RMQ, options: rmq };
-              },
-              inject: [AppConfigService],
-            },
-          ]
-        : []),
     ]),
 
     // Scheduling

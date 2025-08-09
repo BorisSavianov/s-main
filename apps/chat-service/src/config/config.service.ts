@@ -258,27 +258,6 @@ export class AppConfigService {
     };
   }
 
-  get rabbitmqConfig() {
-    const url = this.configService.get('RABBITMQ_URL', { infer: true });
-    return url
-      ? {
-          urls: [url],
-          queue: 'chat_queue',
-          queueOptions: {
-            durable: true,
-            arguments: {
-              'x-message-ttl': 60000,
-            },
-          },
-          socketOptions: {
-            keepAlive: true,
-            heartbeatIntervalInSeconds: 30,
-            reconnectTimeInSeconds: 1,
-          },
-        }
-      : null;
-  }
-
   // Throttling Configuration
   get throttleConfig() {
     return {

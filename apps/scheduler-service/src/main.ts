@@ -9,7 +9,7 @@ import * as compression from 'compression';
 import { SchedulerServiceModule } from './scheduler-service.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
-import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -70,7 +70,7 @@ async function bootstrap() {
   // Global interceptors
   app.useGlobalInterceptors(
     new LoggingInterceptor(),
-    new TransformInterceptor(),
+    new ResponseInterceptor(),
   );
 
   // Swagger documentation

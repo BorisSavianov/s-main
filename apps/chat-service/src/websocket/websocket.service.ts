@@ -33,8 +33,6 @@ export class WebSocketService {
     private readonly contextRepository: Repository<AiContext>,
     @Inject('AUTH_SERVICE')
     private readonly authService: ClientProxy,
-    @Inject('RABBITMQ_SERVICE')
-    private readonly messageQueue: ClientProxy,
   ) {}
 
   setServer(server: Server) {

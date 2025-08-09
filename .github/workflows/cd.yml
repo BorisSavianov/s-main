@@ -143,7 +143,7 @@ jobs:
 #             docker-compose pull
 
 #             # Start infrastructure services first
-#             docker-compose up -d postgres redis rabbitmq elasticsearch
+#             docker-compose up -d postgres redis elasticsearch
 
 #             # Wait for infrastructure to be ready
 #             sleep 30

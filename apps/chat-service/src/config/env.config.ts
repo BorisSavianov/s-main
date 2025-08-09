@@ -224,10 +224,6 @@ export class EnvironmentVariables {
   @Type(() => Number)
   AUTH_SERVICE_PORT: number = 4000;
 
-  @IsString()
-  @IsOptional()
-  RABBITMQ_URL?: string;
-
   // Throttling
   @IsNumber()
   @Type(() => Number)

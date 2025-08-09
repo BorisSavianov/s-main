@@ -1,4 +1,4 @@
-// apps/auth-service/src/health/health.controller.ts
+// apps/auth-service/src/health/health.controler.ts
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import {

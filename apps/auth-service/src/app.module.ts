@@ -13,7 +13,13 @@ import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
-    PrometheusModule.register(),
+    // Prometheus metrics
+    PrometheusModule.register({
+      defaultMetrics: {
+        enabled: true,
+        config: { prefix: 'auth_serice_' },
+      },
+    }),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',

@@ -113,37 +113,6 @@ import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
         }),
         inject: [ConfigService],
       },
-      // Conditionally add RabbitMQ service only if configured
-      ...(process.env.RABBITMQ_URL
-        ? [
-            {
-              name: 'RABBITMQ_SERVICE',
-              imports: [ConfigModule],
-              useFactory: (configService: ConfigService): RmqOptions => ({
-                transport: Transport.RMQ,
-                options: {
-                  urls: [configService.get<string>('RABBITMQ_URL')!],
-                  queue: configService.get<string>(
-                    'RABBITMQ_QUEUE',
-                    'chat_queue',
-                  ),
-                  queueOptions: {
-                    durable: true,
-                    arguments: {
-                      'x-message-ttl': 60000,
-                    },
-                  },
-                  socketOptions: {
-                    keepAlive: true,
-                    heartbeatIntervalInSeconds: 30,
-                    reconnectTimeInSeconds: 1,
-                  },
-                },
-              }),
-              inject: [ConfigService],
-            },
-          ]
-        : []),
     ]),
 
     ConfigModule,

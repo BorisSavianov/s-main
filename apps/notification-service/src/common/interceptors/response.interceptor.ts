@@ -1,4 +1,4 @@
-// apps/user-service/src/common/interceptors/response.interceptor.ts
+// apps/notification-service/src/common/interceptors/response.interceptor.ts
 import {
   Injectable,
   NestInterceptor,
@@ -21,14 +21,19 @@ export class ResponseInterceptor<T> implements NestInterceptor<T, Response<T>> {
     context: ExecutionContext,
     next: CallHandler,
   ): Observable<Response<T>> {
+    const request = context.switchToHttp().getRequest();
+
+    if (request.url === '/metrics') {
+      // Skip wrapping for Prometheus metrics endpoint
+      return next.handle();
+    }
+
     return next.handle().pipe(
       map((data) => {
-        // If data is already formatted (has success property), return as is
         if (data && typeof data === 'object' && 'success' in data) {
           return data;
         }
 
-        // Otherwise, wrap the data
         return {
           success: true,
           data,
