@@ -39,11 +39,13 @@ import { JwtStrategy } from '../../../../auth-service/src/auth/strategies/jwt.st
 import { RefreshTokenStrategy } from '../../../../auth-service/src/auth/strategies/refresh-token.strategy';
 import { RedisModule } from 'apps/auth-service/src/redis/redis.module';
 import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
+import { NotificationModule } from 'apps/notification-service/src/notifications/services/notification.module';
 
 @Module({
   imports: [
     AuthCoreModule,
     RedisModule,
+    NotificationModule,
     TypeOrmModule.forFeature([
       ChatSession,
       ChatMessage,

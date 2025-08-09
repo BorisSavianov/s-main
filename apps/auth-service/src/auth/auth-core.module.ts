@@ -99,49 +99,32 @@ import { join } from 'path';
       },
     }),
     NestMailerModule.forRootAsync({
-      useFactory: (configService: ConfigService) => ({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
         transport: {
-          host: configService.get('MAIL_HOST', 'smtp.gmail.com'),
+          host: configService.get<string>('MAIL_HOST', 'smtp.gmail.com'),
           port: configService.get<number>('MAIL_PORT', 465),
           secure: configService.get<boolean>('MAIL_SECURE', true),
           auth: {
-            user: configService.get('MAIL_USER'),
-            pass: configService.get('MAIL_PASS'),
+            user: configService.get<string>('MAIL_USER'),
+            pass: configService.get<string>('MAIL_PASS'),
           },
-          // Additional SMTP options
-          pool: true,
-          maxConnections: 5,
-          maxMessages: 100,
-          rateDelta: 1000,
-          rateLimit: 5,
         },
         defaults: {
-          from: `${configService.get('MAIL_FROM_NAME', 'Mental Health Platform')} <${configService.get('MAIL_FROM_ADDRESS', 'noreply@mentalhealth.com')}>`,
+          from: `"${configService.get<string>('MAIL_FROM_NAME', 'Chat Service')}" <${configService.get<string>('MAIL_FROM_ADDRESS', 'noreply@example.com')}>`,
         },
         template: {
-          dir: join(
-            __dirname,
-            '../../../notification-service/src/templates/email',
-          ),
+          dir: join(__dirname, '../../templates/email'),
           adapter: new HandlebarsAdapter(),
           options: {
             strict: true,
           },
         },
-        options: {
-          partials: {
-            dir: join(
-              __dirname,
-              '../../../notification-service/src/templates/email',
-            ),
-            options: {
-              strict: true,
-            },
-          },
-        },
       }),
       inject: [ConfigService],
     }),
+
+    ConfigModule,
   ],
   providers: [
     AuthService,
@@ -155,7 +138,7 @@ import { join } from 'path';
     GoogleStrategy,
     NotificationClientModule,
     NotificationServiceClient,
-    MailerService, // ✅ custom service
+    MailerService,
     NotificationService,
     TemplateService,
     NotificationPreferencesService,

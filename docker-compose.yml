@@ -27,7 +27,7 @@ services:
   redis:
     image: redis:8-alpine
     container_name: serenity_space_redis
-    command: redis-server --appendonly yes --requirepass mentalhealth2024
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
       - ./infrastructure/redis/redis.conf:/usr/local/etc/redis/redis.conf
@@ -363,10 +363,10 @@ services:
       dockerfile: Dockerfile
     container_name: serenity_space_video
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=${NODE_ENV}
       - PORT=4004
-      - REDIS_URL=redis://:mentalhealth2024@redis:6379
-      - AUTH_SERVICE_URL=http://auth-service:4000
+      - REDIS_URL=${REDIS_URL}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
       - TURN_SECRET=your-turn-secret-change-in-production
     ports:
       - '4004:4004'
@@ -391,11 +391,11 @@ services:
       dockerfile: Dockerfile
     container_name: serenity_space_mood
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=${NODE_ENV}
       - PORT=4005
-      - DATABASE_URL=postgresql://postgres:mentalhealth2024@postgres:5432/mentalhealth
-      - REDIS_URL=redis://:mentalhealth2024@redis:6379
-      - AUTH_SERVICE_URL=http://auth-service:4000
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
     ports:
       - '4005:4005'
     depends_on:
@@ -605,7 +605,7 @@ services:
     container_name: serenity_space_redis_commander
     environment:
       - REDIS_HOSTS=local:redis:6379
-      - REDIS_PASSWORD=mentalhealth2024
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
     ports:
       - '8082:8081'
     depends_on:

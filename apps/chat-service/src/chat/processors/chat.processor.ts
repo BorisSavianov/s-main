@@ -4,7 +4,6 @@ import { Job } from 'bull';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { MailerService } from '@nestjs-modules/mailer';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ChatSession } from '../entities/chat-session.entity';
 import { ChatMessage, SenderType } from '../entities/chat-message.entity';

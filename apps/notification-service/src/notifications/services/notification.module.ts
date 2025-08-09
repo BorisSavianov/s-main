@@ -20,6 +20,8 @@ import {
 import { PreferencesModule } from '../../prefrences/services/prefrences.module';
 import { TemplateModule } from '../../templates/services/template.module';
 import { MailerService } from './mailer.service';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -40,6 +42,20 @@ import { MailerService } from './mailer.service';
         },
       },
     }),
+
+    ClientsModule.registerAsync([
+      {
+        name: 'NOTIFICATION_SERVICE',
+        useFactory: (configService: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            host: configService.get('NOTIFICATION_HOST', 'localhost'),
+            port: configService.get('NOTIFICATION_PORT', 4000),
+          },
+        }),
+        inject: [ConfigService],
+      },
+    ]),
     HttpModule,
     PreferencesModule,
     TemplateModule,
@@ -51,6 +67,6 @@ import { MailerService } from './mailer.service';
     NotificationSchedulerService,
     MailerService,
   ],
-  exports: [NotificationService],
+  exports: [NotificationService, ClientsModule],
 })
 export class NotificationModule {}
