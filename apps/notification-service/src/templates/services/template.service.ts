@@ -30,35 +30,57 @@ export class TemplateService {
     this.registerHelpers();
   }
 
+  // First, let's debug what's happening. Add this to your TemplateService.renderTemplate method
   async renderTemplate(
     templateName: string,
     data: Record<string, any>,
-    notificationType: NotificationType,
+    notificationType?: NotificationType,
   ): Promise<RenderedTemplate> {
     const template = await this.getTemplate(templateName);
 
     if (!template) {
+      this.logger.error(`Template ${templateName} not found`);
       throw new NotFoundException(`Template ${templateName} not found`);
     }
 
-    if (!template.supportedChannels.includes(notificationType)) {
+    // DEBUG: Log the template and data
+    this.logger.debug(`Rendering template: ${templateName}`);
+    this.logger.debug(`Template body: ${template.bodyTemplate}`);
+    this.logger.debug(
+      `Template variables: ${JSON.stringify(template.variables)}`,
+    );
+    this.logger.debug(`Render data: ${JSON.stringify(data)}`);
+
+    if (
+      notificationType &&
+      !template.supportedChannels.includes(notificationType)
+    ) {
       this.logger.warn(
         `Template ${templateName} does not support ${notificationType} channel`,
       );
     }
 
-    const compiledTemplate = await this.getCompiledTemplate(template);
+    try {
+      const compiledTemplate = await this.getCompiledTemplate(template);
 
-    const renderedBody = compiledTemplate.body(data);
-    const renderedSubject = compiledTemplate.subject
-      ? compiledTemplate.subject(data)
-      : undefined;
+      const renderedBody = compiledTemplate.body(data);
+      const renderedSubject = compiledTemplate.subject
+        ? compiledTemplate.subject(data)
+        : undefined;
 
-    return {
-      subject: renderedSubject,
-      text: this.stripHtml(renderedBody),
-      html: renderedBody,
-    };
+      // DEBUG: Log the rendered output
+      this.logger.debug(`Rendered body: ${renderedBody}`);
+      this.logger.debug(`Rendered subject: ${renderedSubject}`);
+
+      return {
+        subject: renderedSubject,
+        text: this.stripHtml(renderedBody),
+        html: renderedBody,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to render template ${templateName}:`, error);
+      throw error;
+    }
   }
 
   async getTemplate(

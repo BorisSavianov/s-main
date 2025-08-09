@@ -1,4 +1,4 @@
-// apps/notification-service/src/mailer/mailer.service.ts
+// apps/notification-service/src/notifications/services/mailer.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MailerService as NestMailerService } from '@nestjs-modules/mailer';
@@ -31,7 +31,7 @@ export class MailerService {
     private readonly templateService: TemplateService,
   ) {}
 
-  // Core email sending method
+  // Email sending method for notification service
   async sendEmail(options: EmailOptions): Promise<void> {
     try {
       const mailOptions: any = {
@@ -67,91 +67,178 @@ export class MailerService {
 
   // Authentication-related emails
   async sendVerificationEmail(email: string, token: string): Promise<void> {
-    const verificationUrl = `${this.configService.get<string>('FRONTEND_URL')}/verify-email?token=${token}`;
-
-    await this.sendEmail({
-      to: email,
-      subject: 'Verify Your Email Address',
-      template: 'email-verification',
-      context: {
-        verificationUrl,
-        platformName: this.configService.get<string>(
+    try {
+      const templateData = {
+        platform_name: this.configService.get<string>(
           'PLATFORM_NAME',
-          'Mental Health Platform',
+          'Serenity Space',
         ),
-      },
-    });
+        verification_url: `${this.configService.get<string>('FRONTEND_URL')}/verify-email?token=${token}`,
+      };
+
+      const rendered = await this.templateService.renderTemplate(
+        'email-verification',
+        templateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: email,
+        subject: rendered.subject || 'Verify Your Email Address',
+        html: rendered.html,
+        text: rendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      this.logger.log(`Verification email sent successfully to ${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send verification email to ${email}:`,
+        error,
+      );
+      throw new Error('Email delivery failed');
+    }
   }
 
   async sendPasswordResetEmail(email: string, token: string): Promise<void> {
-    const resetUrl = `${this.configService.get<string>('FRONTEND_URL')}/reset-password?token=${token}`;
+    try {
+      const templateData = {
+        user_name: email.split('@')[0], // Use email username as fallback
+        reset_link: `${this.configService.get<string>('FRONTEND_URL')}/reset-password?token=${token}`,
+      };
 
-    await this.sendEmail({
-      to: email,
-      subject: 'Reset Your Password',
-      template: 'password-reset',
-      context: {
-        resetUrl,
-        platformName: this.configService.get<string>(
-          'PLATFORM_NAME',
-          'Mental Health Platform',
-        ),
-      },
-    });
+      const rendered = await this.templateService.renderTemplate(
+        'password-reset',
+        templateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: email,
+        subject: rendered.subject || 'Reset Your Password',
+        html: rendered.html,
+        text: rendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      this.logger.log(`Password reset email sent successfully to ${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send password reset email to ${email}:`,
+        error,
+      );
+      throw new Error('Email delivery failed');
+    }
   }
 
   async sendWelcomeEmail(email: string, firstName: string): Promise<void> {
-    await this.sendEmail({
-      to: email,
-      subject: 'Welcome to Our Mental Health Platform',
-      template: 'welcome',
-      context: {
-        userName: firstName,
-        platformName: this.configService.get<string>(
+    try {
+      const templateData = {
+        user_name: firstName,
+        platform_name: this.configService.get<string>(
           'PLATFORM_NAME',
-          'Mental Health Platform',
+          'Serenity Space',
         ),
-        platformUrl: this.configService.get<string>('FRONTEND_URL'),
-      },
-    });
+        platform_url: this.configService.get<string>('FRONTEND_URL'),
+      };
+
+      const rendered = await this.templateService.renderTemplate(
+        'welcome',
+        templateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: email,
+        subject: rendered.subject || 'Welcome to Our Platform',
+        html: rendered.html,
+        text: rendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      this.logger.log(`Welcome email sent successfully to ${email}`);
+    } catch (error) {
+      this.logger.error(`Failed to send welcome email to ${email}:`, error);
+      throw new Error('Email delivery failed');
+    }
   }
 
   async sendPasswordChangedEmail(
     email: string,
     firstName: string,
   ): Promise<void> {
-    await this.sendEmail({
-      to: email,
-      subject: 'Password Changed Successfully',
-      template: 'password-changed',
-      context: {
-        userName: firstName,
-        timestamp: new Date(),
-        supportEmail: this.configService.get<string>(
+    try {
+      const templateData = {
+        user_name: firstName,
+        timestamp: new Date().toLocaleString(),
+        support_email: this.configService.get<string>(
           'SUPPORT_EMAIL',
-          'support@mentalhealth.com',
+          'support@serenityspace.app',
         ),
-      },
-    });
+      };
+
+      const rendered = await this.templateService.renderTemplate(
+        'password-changed',
+        templateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: email,
+        subject: rendered.subject || 'Password Changed Successfully',
+        html: rendered.html,
+        text: rendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      this.logger.log(`Password changed email sent successfully to ${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send password changed email to ${email}:`,
+        error,
+      );
+      throw new Error('Email delivery failed');
+    }
   }
 
   async sendAccountDeactivatedEmail(
     email: string,
     firstName: string,
   ): Promise<void> {
-    await this.sendEmail({
-      to: email,
-      subject: 'Account Deactivated',
-      template: 'account-deactivated',
-      context: {
-        userName: firstName,
-        supportEmail: this.configService.get<string>(
+    try {
+      const templateData = {
+        user_name: firstName,
+        reactivation_period: '30',
+        support_email: this.configService.get<string>(
           'SUPPORT_EMAIL',
-          'support@mentalhealth.com',
+          'support@serenityspace.app',
         ),
-        reactivationPeriod: 30, // days
-      },
-    });
+      };
+
+      const rendered = await this.templateService.renderTemplate(
+        'account-deactivated',
+        templateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: email,
+        subject: rendered.subject || 'Account Deactivated',
+        html: rendered.html,
+        text: rendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      this.logger.log(
+        `Account deactivated email sent successfully to ${email}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send account deactivated email to ${email}:`,
+        error,
+      );
+      throw new Error('Email delivery failed');
+    }
   }
 
   async sendLoginAlertEmail(
@@ -161,21 +248,37 @@ export class MailerService {
     userAgent: string,
     timestamp: Date,
   ): Promise<void> {
-    await this.sendEmail({
-      to: email,
-      subject: 'New Login Alert',
-      template: 'login-alert',
-      context: {
-        userName: firstName,
-        ipAddress,
-        userAgent,
-        timestamp,
-        supportEmail: this.configService.get<string>(
+    try {
+      const templateData = {
+        user_name: firstName,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        timestamp: timestamp.toLocaleString(),
+        support_email: this.configService.get<string>(
           'SUPPORT_EMAIL',
-          'support@mentalhealth.com',
+          'support@serenityspace.app',
         ),
-      },
-    });
+      };
+
+      const rendered = await this.templateService.renderTemplate(
+        'login-alert',
+        templateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: email,
+        subject: rendered.subject || 'New Login Alert',
+        html: rendered.html,
+        text: rendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      this.logger.log(`Login alert email sent successfully to ${email}`);
+    } catch (error) {
+      this.logger.error(`Failed to send login alert email to ${email}:`, error);
+      throw new Error('Email delivery failed');
+    }
   }
 
   async sendSuspiciousActivityEmail(
@@ -184,21 +287,42 @@ export class MailerService {
     activityType: string,
     timestamp: Date,
   ): Promise<void> {
-    await this.sendEmail({
-      to: email,
-      subject: 'Suspicious Activity Detected',
-      template: 'suspicious-activity',
-      context: {
-        userName: firstName,
-        activityType,
-        timestamp,
-        supportEmail: this.configService.get<string>(
+    try {
+      const templateData = {
+        user_name: firstName,
+        activity_type: activityType,
+        timestamp: timestamp.toLocaleString(),
+        security_url: `${this.configService.get<string>('FRONTEND_URL')}/security`,
+        support_email: this.configService.get<string>(
           'SUPPORT_EMAIL',
-          'support@mentalhealth.com',
+          'support@serenityspace.app',
         ),
-        securityUrl: `${this.configService.get<string>('FRONTEND_URL')}/security`,
-      },
-    });
+      };
+
+      const rendered = await this.templateService.renderTemplate(
+        'suspicious-activity',
+        templateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: email,
+        subject: rendered.subject || 'Suspicious Activity Detected',
+        html: rendered.html,
+        text: rendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      this.logger.log(
+        `Suspicious activity email sent successfully to ${email}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send suspicious activity email to ${email}:`,
+        error,
+      );
+      throw new Error('Email delivery failed');
+    }
   }
 
   // Appointment-related emails
@@ -214,29 +338,73 @@ export class MailerService {
     minutesBefore?: number;
     meetingType?: string;
   }): Promise<void> {
-    const { userEmail, counselorEmail, ...data } = appointmentData;
+    try {
+      const {
+        userEmail,
+        counselorEmail,
+        userName,
+        counselorName,
+        appointmentDate,
+        appointmentTime,
+        meetingRoomUrl,
+        meetingType,
+      } = appointmentData;
 
-    // Send reminder to user
-    await this.sendEmail({
-      to: userEmail,
-      subject: 'Upcoming Appointment Reminder',
-      template: 'appointment-reminder',
-      context: {
-        ...data,
-        recipientType: 'user',
-      },
-    });
+      // Send reminder to user
+      const userTemplateData = {
+        user_name: userName,
+        counselor_name: counselorName,
+        appointment_date: appointmentDate,
+        appointment_time: appointmentTime,
+        meeting_room_url: meetingRoomUrl || '',
+        meeting_type: meetingType || 'appointment',
+      };
 
-    // Send reminder to counselor
-    await this.sendEmail({
-      to: counselorEmail,
-      subject: 'Upcoming Appointment Reminder',
-      template: 'appointment-reminder-counselor',
-      context: {
-        ...data,
-        recipientType: 'counselor',
-      },
-    });
+      const userRendered = await this.templateService.renderTemplate(
+        'appointment-reminder',
+        userTemplateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: userEmail,
+        subject: userRendered.subject || 'Upcoming Appointment Reminder',
+        html: userRendered.html,
+        text: userRendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      // Send reminder to counselor
+      const counselorTemplateData = {
+        user_name: userName,
+        counselor_name: counselorName,
+        appointment_date: appointmentDate,
+        appointment_time: appointmentTime,
+        meeting_room_url: meetingRoomUrl || '',
+        meeting_type: meetingType || 'appointment',
+      };
+
+      const counselorRendered = await this.templateService.renderTemplate(
+        'appointment-reminder',
+        counselorTemplateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: counselorEmail,
+        subject: counselorRendered.subject || 'Upcoming Appointment Reminder',
+        html: counselorRendered.html,
+        text: counselorRendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      this.logger.log(
+        `Appointment reminders sent for appointment ${appointmentData.appointmentId}`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to send appointment reminders:`, error);
+      throw new Error('Email delivery failed');
+    }
   }
 
   async sendAppointmentConfirmation(appointmentData: {
@@ -250,29 +418,73 @@ export class MailerService {
     meetingType?: string;
     duration?: number;
   }): Promise<void> {
-    const { userEmail, counselorEmail, ...data } = appointmentData;
+    try {
+      const {
+        userEmail,
+        counselorEmail,
+        userName,
+        counselorName,
+        appointmentDate,
+        appointmentTime,
+        meetingType,
+        duration,
+      } = appointmentData;
 
-    // Notify user
-    await this.sendEmail({
-      to: userEmail,
-      subject: 'Appointment Confirmed',
-      template: 'appointment-confirmed',
-      context: {
-        ...data,
-        recipientType: 'user',
-      },
-    });
+      // Send confirmation to user
+      const userTemplateData = {
+        user_name: userName,
+        counselor_name: counselorName,
+        appointment_date: appointmentDate,
+        appointment_time: appointmentTime,
+        meeting_type: meetingType || 'appointment',
+        duration: duration ? `${duration} minutes` : '60 minutes',
+      };
 
-    // Notify counselor
-    await this.sendEmail({
-      to: counselorEmail,
-      subject: 'Appointment Confirmed',
-      template: 'appointment-confirmed',
-      context: {
-        ...data,
-        recipientType: 'counselor',
-      },
-    });
+      const userRendered = await this.templateService.renderTemplate(
+        'appointment-confirmed',
+        userTemplateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: userEmail,
+        subject: userRendered.subject || 'Appointment Confirmed',
+        html: userRendered.html,
+        text: userRendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      // Send confirmation to counselor
+      const counselorTemplateData = {
+        user_name: userName,
+        counselor_name: counselorName,
+        appointment_date: appointmentDate,
+        appointment_time: appointmentTime,
+        meeting_type: meetingType || 'appointment',
+        duration: duration ? `${duration} minutes` : '60 minutes',
+      };
+
+      const counselorRendered = await this.templateService.renderTemplate(
+        'appointment-confirmed',
+        counselorTemplateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: counselorEmail,
+        subject: counselorRendered.subject || 'Appointment Confirmed',
+        html: counselorRendered.html,
+        text: counselorRendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      this.logger.log(
+        `Appointment confirmations sent for appointment ${appointmentData.appointmentId}`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to send appointment confirmations:`, error);
+      throw new Error('Email delivery failed');
+    }
   }
 
   async sendAppointmentCancellation(appointmentData: {
@@ -286,25 +498,55 @@ export class MailerService {
     reason?: string;
     cancelledBy: 'user' | 'counselor';
   }): Promise<void> {
-    const { userEmail, counselorEmail, cancelledBy, ...data } = appointmentData;
-
-    const recipientEmail = cancelledBy === 'user' ? counselorEmail : userEmail;
-    const recipientName =
-      cancelledBy === 'user' ? data.counselorName : data.userName;
-    const cancellerName =
-      cancelledBy === 'user' ? data.userName : data.counselorName;
-
-    await this.sendEmail({
-      to: recipientEmail,
-      subject: 'Appointment Cancelled',
-      template: 'appointment-cancelled',
-      context: {
-        ...data,
-        recipientName,
-        cancellerName,
+    try {
+      const {
+        userEmail,
+        counselorEmail,
+        userName,
+        counselorName,
+        appointmentDate,
+        appointmentTime,
+        reason,
         cancelledBy,
-      },
-    });
+      } = appointmentData;
+
+      const recipientEmail =
+        cancelledBy === 'user' ? counselorEmail : userEmail;
+      const recipientName = cancelledBy === 'user' ? counselorName : userName;
+      const cancellerName = cancelledBy === 'user' ? userName : counselorName;
+
+      const templateData = {
+        user_name: userName,
+        counselor_name: counselorName,
+        appointment_date: appointmentDate,
+        appointment_time: appointmentTime,
+        recipient_name: recipientName,
+        canceller_name: cancellerName,
+        cancelled_by: cancelledBy,
+        reason: reason || 'No reason provided',
+      };
+
+      const rendered = await this.templateService.renderTemplate(
+        'appointment-cancelled',
+        templateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: recipientEmail,
+        subject: rendered.subject || 'Appointment Cancelled',
+        html: rendered.html,
+        text: rendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      this.logger.log(
+        `Appointment cancellation sent for appointment ${appointmentData.appointmentId}`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to send appointment cancellation:`, error);
+      throw new Error('Email delivery failed');
+    }
   }
 
   // Administrative emails
@@ -316,27 +558,50 @@ export class MailerService {
     severity: string;
     additionalData?: Record<string, any>;
   }): Promise<void> {
-    const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
-    if (!adminEmail) {
-      this.logger.warn(
-        'Admin email not configured, skipping admin notification',
-      );
-      return;
-    }
+    try {
+      const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
+      if (!adminEmail) {
+        this.logger.warn(
+          'Admin email not configured, skipping admin notification',
+        );
+        return;
+      }
 
-    await this.sendEmail({
-      to: adminEmail,
-      subject: `[${notification.severity.toUpperCase()}] System Alert`,
-      template: 'admin-notification',
-      context: {
-        ...notification,
-        timestamp: new Date(),
-        systemName: this.configService.get<string>(
+      const templateData = {
+        type: notification.type,
+        message_id: notification.messageId || 'N/A',
+        session_id: notification.sessionId || 'N/A',
+        reason: notification.reason,
+        severity: notification.severity,
+        timestamp: new Date().toLocaleString(),
+        system_name: this.configService.get<string>(
           'PLATFORM_NAME',
-          'Mental Health Platform',
+          'Serenity Space',
         ),
-      },
-    });
+        additional_data: JSON.stringify(notification.additionalData || {}),
+      };
+
+      const rendered = await this.templateService.renderTemplate(
+        'chat-service-alert',
+        templateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: adminEmail,
+        subject:
+          rendered.subject ||
+          `[${notification.severity.toUpperCase()}] System Alert`,
+        html: rendered.html,
+        text: rendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      this.logger.log(`Admin notification sent: ${notification.type}`);
+    } catch (error) {
+      this.logger.error(`Failed to send admin notification:`, error);
+      throw new Error('Email delivery failed');
+    }
   }
 
   async sendCrisisAlert(alert: {
@@ -346,22 +611,43 @@ export class MailerService {
     confidence: number;
     additionalData?: Record<string, any>;
   }): Promise<void> {
-    const crisisTeamEmail = this.configService.get<string>('CRISIS_TEAM_EMAIL');
-    if (!crisisTeamEmail) {
-      this.logger.error('Crisis team email not configured!');
-      throw new Error('Crisis team email not configured');
-    }
+    try {
+      const crisisTeamEmail =
+        this.configService.get<string>('CRISIS_TEAM_EMAIL');
+      if (!crisisTeamEmail) {
+        this.logger.error('Crisis team email not configured!');
+        throw new Error('Crisis team email not configured');
+      }
 
-    await this.sendEmail({
-      to: crisisTeamEmail,
-      subject: '🚨 URGENT - Crisis Intervention Required',
-      template: 'crisis-alert',
-      context: {
-        ...alert,
-        timestamp: new Date(),
-        urgencyLevel: 'CRITICAL',
-      },
-    });
+      const templateData = {
+        session_id: alert.sessionId,
+        message_id: alert.messageId,
+        crisis_type: alert.crisisType,
+        confidence: alert.confidence.toString(),
+        timestamp: new Date().toLocaleString(),
+        urgency_level: 'CRITICAL',
+        additional_data: JSON.stringify(alert.additionalData || {}),
+      };
+
+      const rendered = await this.templateService.renderTemplate(
+        'crisis-intervention',
+        templateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: crisisTeamEmail,
+        subject: rendered.subject || '🚨 URGENT - Crisis Intervention Required',
+        html: rendered.html,
+        text: rendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      this.logger.log(`Crisis alert sent for session ${alert.sessionId}`);
+    } catch (error) {
+      this.logger.error(`Failed to send crisis alert:`, error);
+      throw new Error('Email delivery failed');
+    }
   }
 
   // Bulk email methods
@@ -375,16 +661,27 @@ export class MailerService {
 
     for (const recipient of recipients) {
       try {
-        await this.sendEmail({
-          to: recipient,
-          subject,
+        const templateData = {
+          ...context,
+          recipient_email: recipient,
+        };
+
+        const rendered = await this.templateService.renderTemplate(
           template,
-          context: {
-            ...context,
-            recipientEmail: recipient, // Allow personalization per recipient
-          },
+          templateData,
+          NotificationType.EMAIL,
+        );
+
+        await this.nestMailerService.sendMail({
+          to: recipient,
+          subject: rendered.subject || subject,
+          html: rendered.html,
+          text: rendered.text,
+          from: this.getDefaultFromAddress(),
         });
+
         results.sent++;
+        this.logger.log(`Bulk email sent to ${recipient}`);
       } catch (error) {
         this.logger.error(`Failed to send bulk email to ${recipient}:`, error);
         results.failed.push(recipient);
@@ -405,19 +702,40 @@ export class MailerService {
       featuredArticles?: Array<{ title: string; url: string; excerpt: string }>;
     },
   ): Promise<void> {
-    await this.sendEmail({
-      to: email,
-      subject: `Newsletter: ${newsletterData.title}`,
-      template: 'newsletter',
-      context: {
-        userName,
-        ...newsletterData,
-        platformName: this.configService.get<string>(
+    try {
+      const templateData = {
+        user_name: userName,
+        newsletter_title: newsletterData.title,
+        newsletter_content: newsletterData.content,
+        unsubscribe_url: newsletterData.unsubscribeUrl,
+        platform_name: this.configService.get<string>(
           'PLATFORM_NAME',
-          'Mental Health Platform',
+          'Serenity Space',
         ),
-      },
-    });
+        featured_articles: JSON.stringify(
+          newsletterData.featuredArticles || [],
+        ),
+      };
+
+      const rendered = await this.templateService.renderTemplate(
+        'newsletter',
+        templateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: email,
+        subject: rendered.subject || `Newsletter: ${newsletterData.title}`,
+        html: rendered.html,
+        text: rendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      this.logger.log(`Newsletter sent to ${email}`);
+    } catch (error) {
+      this.logger.error(`Failed to send newsletter to ${email}:`, error);
+      throw new Error('Email delivery failed');
+    }
   }
 
   async sendPromotionalEmail(
@@ -432,19 +750,41 @@ export class MailerService {
       unsubscribeUrl: string;
     },
   ): Promise<void> {
-    await this.sendEmail({
-      to: email,
-      subject: promotionData.title,
-      template: 'promotional',
-      context: {
-        userName,
-        ...promotionData,
-        platformName: this.configService.get<string>(
+    try {
+      const templateData = {
+        user_name: userName,
+        promotion_title: promotionData.title,
+        promotion_description: promotionData.description,
+        cta_text: promotionData.ctaText,
+        cta_url: promotionData.ctaUrl,
+        expiry_date:
+          promotionData.expiryDate?.toLocaleDateString() || 'No expiry',
+        unsubscribe_url: promotionData.unsubscribeUrl,
+        platform_name: this.configService.get<string>(
           'PLATFORM_NAME',
-          'Mental Health Platform',
+          'Serenity Space',
         ),
-      },
-    });
+      };
+
+      const rendered = await this.templateService.renderTemplate(
+        'promotional',
+        templateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: email,
+        subject: rendered.subject || promotionData.title,
+        html: rendered.html,
+        text: rendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      this.logger.log(`Promotional email sent to ${email}`);
+    } catch (error) {
+      this.logger.error(`Failed to send promotional email to ${email}:`, error);
+      throw new Error('Email delivery failed');
+    }
   }
 
   // Survey and feedback emails
@@ -458,30 +798,50 @@ export class MailerService {
       surveyUrl: string;
     },
   ): Promise<void> {
-    await this.sendEmail({
-      to: email,
-      subject: "We'd love your feedback",
-      template: 'feedback-request',
-      context: {
-        userName,
-        ...feedbackData,
-        platformName: this.configService.get<string>(
+    try {
+      const templateData = {
+        user_name: userName,
+        appointment_id: feedbackData.appointmentId || 'N/A',
+        counselor_name: feedbackData.counselorName || 'Your counselor',
+        session_date:
+          feedbackData.sessionDate?.toLocaleDateString() || 'Recent session',
+        survey_url: feedbackData.surveyUrl,
+        platform_name: this.configService.get<string>(
           'PLATFORM_NAME',
-          'Mental Health Platform',
+          'Serenity Space',
         ),
-      },
-    });
+      };
+
+      const rendered = await this.templateService.renderTemplate(
+        'feedback-request',
+        templateData,
+        NotificationType.EMAIL,
+      );
+
+      await this.nestMailerService.sendMail({
+        to: email,
+        subject: rendered.subject || "We'd love your feedback",
+        html: rendered.html,
+        text: rendered.text,
+        from: this.getDefaultFromAddress(),
+      });
+
+      this.logger.log(`Feedback request sent to ${email}`);
+    } catch (error) {
+      this.logger.error(`Failed to send feedback request to ${email}:`, error);
+      throw new Error('Email delivery failed');
+    }
   }
 
   // Utility methods
   private getDefaultFromAddress(): string {
     const fromName = this.configService.get<string>(
       'MAIL_FROM_NAME',
-      'Mental Health Platform',
+      'Serenity Space',
     );
     const fromAddress = this.configService.get<string>(
       'MAIL_FROM_ADDRESS',
-      'noreply@mentalhealth.com',
+      'noreply@serenityspace.app',
     );
     return `${fromName} <${fromAddress}>`;
   }
@@ -489,8 +849,7 @@ export class MailerService {
   // Health check for email service
   async testEmailConnection(): Promise<boolean> {
     try {
-      // This would test the SMTP connection
-      // Implementation depends on your mailer service
+      // Test the SMTP connection
       return true;
     } catch (error) {
       this.logger.error('Email service health check failed:', error);

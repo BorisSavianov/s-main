@@ -177,35 +177,211 @@ INSERT INTO notification_templates (
     variables
 ) VALUES
 -- Existing ones
-('appointment_reminder', 'appointments', 'Appointment Reminder', 'Hi {{user_name}}, you have an appointment with {{counselor_name}} on {{appointment_date}} at {{appointment_time}}.',
+('appointment-reminder', 'appointments', 'Appointment Reminder', 'Hi {{user_name}}, you have an appointment with {{counselor_name}} on {{appointment_date}} at {{appointment_time}}.',
  ARRAY['email'::notification_type, 'sms'::notification_type, 'push'::notification_type], '["user_name", "counselor_name", "appointment_date", "appointment_time"]'),
-('mood_reminder', 'mood_reminders', 'Daily Mood Check-in', 'Don''t forget to log your mood for today! It only takes a minute.',
+('mood-reminder', 'mood_reminders', 'Daily Mood Check-in', 'Don''t forget to log your mood for today! It only takes a minute.',
  ARRAY['push'::notification_type, 'in_app'::notification_type], '["user_name"]'),
-('appointment_confirmed', 'appointments', 'Appointment Confirmed', 'Your appointment with {{counselor_name}} on {{appointment_date}} at {{appointment_time}} has been confirmed.',
+('appointment-confirmed', 'appointments', 'Appointment Confirmed', 'Your appointment with {{counselor_name}} on {{appointment_date}} at {{appointment_time}} has been confirmed.',
  ARRAY['email'::notification_type, 'push'::notification_type, 'in_app'::notification_type], '["user_name", "counselor_name", "appointment_date", "appointment_time"]'),
-('appointment_cancelled', 'appointments', 'Appointment Cancelled', 'Your appointment with {{counselor_name}} on {{appointment_date}} at {{appointment_time}} has been cancelled.',
+('appointment-cancelled', 'appointments', 'Appointment Cancelled', 'Your appointment with {{counselor_name}} on {{appointment_date}} at {{appointment_time}} has been cancelled.',
  ARRAY['email'::notification_type, 'push'::notification_type, 'in_app'::notification_type], '["user_name", "counselor_name", "appointment_date", "appointment_time"]'),
 ('welcome', 'system', 'Welcome to Mental Health Support', 'Welcome {{user_name}}! We''re here to support you on your mental health journey.',
  ARRAY['email'::notification_type, 'in_app'::notification_type], '["user_name"]'),
-('password_reset', 'system', 'Password Reset Request', 'Click the link below to reset your password: {{reset_link}}',
+('password-reset', 'system', 'Password Reset Request', 'Click the link below to reset your password: {{reset_link}}',
  ARRAY['email'::notification_type], '["user_name", "reset_link"]'),
 
 -- New ones from missing templates
-('account_deactivated', 'system', 'Account Deactivated', 'Hello {{user_name}}, your account has been deactivated. Your data will be retained for {{reactivation_period}} days. Contact {{support_email}} to reactivate.',
+('account-deactivated', 'system', 'Account Deactivated', 'Hello {{user_name}}, your account has been deactivated. Your data will be retained for {{reactivation_period}} days. Contact {{support_email}} to reactivate.',
  ARRAY['email'::notification_type], '["user_name", "reactivation_period", "support_email"]'),
-('chat_service_alert', 'alerts', '[{{severity}}] Chat Service Alert', 'Type: {{type}}, Session ID: {{session_id}}, Message ID: {{message_id}}, Reason: {{reason}}',
+('chat-service-alert', 'alerts', '[{{severity}}] Chat Service Alert', 'Type: {{type}}, Session ID: {{session_id}}, Message ID: {{message_id}}, Reason: {{reason}}',
  ARRAY['email'::notification_type, 'push'::notification_type], '["severity", "type", "session_id", "message_id", "reason"]'),
-('crisis_intervention', 'alerts', '🚨 URGENT - Crisis Intervention Required', 'Session ID: {{session_id}}, Message ID: {{message_id}}, Crisis Type: {{crisis_type}}, Confidence: {{confidence}}',
+('crisis-intervention', 'alerts', '🚨 URGENT - Crisis Intervention Required', 'Session ID: {{session_id}}, Message ID: {{message_id}}, Crisis Type: {{crisis_type}}, Confidence: {{confidence}}',
  ARRAY['email'::notification_type, 'push'::notification_type], '["session_id", "message_id", "crisis_type", "confidence"]'),
-('email_verification', 'system', 'Verify Your Email Address', 'Welcome to {{platform_name}}! Click here to verify your email: {{verification_url}}',
+('email-verification', 'system', 'Verify Your Email Address', 'Welcome to {{platform_name}}! Click here to verify your email: {{verification_url}}',
  ARRAY['email'::notification_type], '["platform_name", "verification_url"]'),
-('password_changed', 'security', 'Password Changed Successfully', 'Hello {{user_name}}, your password was changed on {{timestamp}}. If this wasn''t you, contact {{support_email}} immediately.',
+('password-changed', 'security', 'Password Changed Successfully', 'Hello {{user_name}}, your password was changed on {{timestamp}}. If this wasn''t you, contact {{support_email}} immediately.',
  ARRAY['email'::notification_type, 'push'::notification_type], '["user_name", "timestamp", "support_email"]'),
-('suspicious_activity', 'security', 'Suspicious Activity Alert', 'Hello {{user_name}}, we detected suspicious activity: {{activity_type}} at {{timestamp}}. Review settings here: {{security_url}}.',
+('suspicious-activity', 'security', 'Suspicious Activity Alert', 'Hello {{user_name}}, we detected suspicious activity: {{activity_type}} at {{timestamp}}. Review settings here: {{security_url}}.',
  ARRAY['email'::notification_type, 'push'::notification_type], '["user_name", "activity_type", "timestamp", "security_url", "support_email"]'),
-('login_alert', 'security', 'New Login Alert', 'Hello {{user_name}}, we detected a new login to your account. Time: {{timestamp}}, IP Address: {{ip_address}}, Device: {{user_agent}}. If this was you, no action is needed. If you don''t recognize this login, please change your password immediately and contact {{support_email}}.',
+('login-alert', 'security', 'New Login Alert', 'Hello {{user_name}}, we detected a new login to your account. Time: {{timestamp}}, IP Address: {{ip_address}}, Device: {{user_agent}}. If this was you, no action is needed. If you don''t recognize this login, please change your password immediately and contact {{support_email}}.',
  ARRAY['email'::notification_type, 'push'::notification_type], '["user_name", "timestamp", "ip_address", "user_agent", "support_email"]');
 
+
+-- First, let's see what templates you currently have
+SELECT template_name, subject_template, body_template, variables 
+FROM notification_templates 
+WHERE template_name IN ('login-alert', 'email-verification', 'password-reset', 'welcome');
+
+-- Now let's fix the templates with proper Handlebars syntax
+-- Update login-alert template
+UPDATE notification_templates 
+SET 
+  subject_template = 'New Login Alert',
+  body_template = '<h2>New Login Detected</h2>
+<p>Hello {{user_name}},</p>
+<p>We detected a new login to your account:</p>
+<ul>
+<li><strong>Time:</strong> {{timestamp}}</li>
+<li><strong>IP Address:</strong> {{ip_address}}</li>
+<li><strong>Device:</strong> {{user_agent}}</li>
+</ul>
+<p>If this was you, no action is needed. If you don''t recognize this login, please change your password immediately and contact <a href="mailto:{{support_email}}">{{support_email}}</a>.</p>
+<p>Best regards,<br>The Serenity Space Team</p>',
+  variables = '["user_name", "timestamp", "ip_address", "user_agent", "support_email"]'::jsonb
+WHERE template_name = 'login-alert';
+
+-- Update email-verification template  
+UPDATE notification_templates 
+SET 
+  subject_template = 'Verify Your Email Address',
+  body_template = '<h2>Welcome to {{platform_name}}!</h2>
+<p>Thank you for signing up. To complete your registration, please verify your email address by clicking the button below:</p>
+<p style="text-align: center;">
+<a href="{{verification_url}}" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Verify Email Address</a>
+</p>
+<p>If the button doesn''t work, you can copy and paste this link into your browser:</p>
+<p>{{verification_url}}</p>
+<p>This link will expire in 24 hours for security reasons.</p>
+<p>Best regards,<br>The {{platform_name}} Team</p>',
+  variables = '["platform_name", "verification_url"]'::jsonb
+WHERE template_name = 'email-verification';
+
+-- Insert email-verification template if it doesn't exist
+INSERT INTO notification_templates (
+    template_name,
+    template_category,
+    subject_template,
+    body_template,
+    supported_channels,
+    variables
+) 
+SELECT 
+    'email-verification',
+    'system',
+    'Verify Your Email Address',
+    '<h2>Welcome to {{platform_name}}!</h2>
+<p>Thank you for signing up. To complete your registration, please verify your email address by clicking the button below:</p>
+<p style="text-align: center;">
+<a href="{{verification_url}}" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Verify Email Address</a>
+</p>
+<p>If the button doesn''t work, you can copy and paste this link into your browser:</p>
+<p>{{verification_url}}</p>
+<p>This link will expire in 24 hours for security reasons.</p>
+<p>Best regards,<br>The {{platform_name}} Team</p>',
+    ARRAY['email'::notification_type],
+    '["platform_name", "verification_url"]'::jsonb
+WHERE NOT EXISTS (
+    SELECT 1 FROM notification_templates 
+    WHERE template_name = 'email-verification'
+);
+
+-- Update password-reset template
+UPDATE notification_templates 
+SET 
+  subject_template = 'Password Reset Request',
+  body_template = '<h2>Password Reset Request</h2>
+<p>Hello {{user_name}},</p>
+<p>You requested to reset your password. Click the button below to set a new password:</p>
+<p style="text-align: center;">
+<a href="{{reset_link}}" style="background-color: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Reset Password</a>
+</p>
+<p>If the button doesn''t work, you can copy and paste this link into your browser:</p>
+<p>{{reset_link}}</p>
+<p>This link will expire in 1 hour for security reasons.</p>
+<p>If you didn''t request this password reset, please ignore this email.</p>
+<p>Best regards,<br>The Serenity Space Team</p>',
+  variables = '["user_name", "reset_link"]'::jsonb
+WHERE template_name = 'password-reset';
+
+-- Insert password-reset template if it doesn't exist
+INSERT INTO notification_templates (
+    template_name,
+    template_category,
+    subject_template,
+    body_template,
+    supported_channels,
+    variables
+) 
+SELECT 
+    'password-reset',
+    'system',
+    'Password Reset Request',
+    '<h2>Password Reset Request</h2>
+<p>Hello {{user_name}},</p>
+<p>You requested to reset your password. Click the button below to set a new password:</p>
+<p style="text-align: center;">
+<a href="{{reset_link}}" style="background-color: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Reset Password</a>
+</p>
+<p>If the button doesn''t work, you can copy and paste this link into your browser:</p>
+<p>{{reset_link}}</p>
+<p>This link will expire in 1 hour for security reasons.</p>
+<p>If you didn''t request this password reset, please ignore this email.</p>
+<p>Best regards,<br>The Serenity Space Team</p>',
+    ARRAY['email'::notification_type],
+    '["user_name", "reset_link"]'::jsonb
+WHERE NOT EXISTS (
+    SELECT 1 FROM notification_templates 
+    WHERE template_name = 'password-reset'
+);
+
+
+-- Clean up all the corrupted supported_channels
+UPDATE notification_templates 
+SET supported_channels = ARRAY['email']::notification_type[]
+WHERE template_name = 'email-verification';
+
+UPDATE notification_templates 
+SET supported_channels = ARRAY['email']::notification_type[]
+WHERE template_name = 'password-reset';
+
+UPDATE notification_templates 
+SET supported_channels = ARRAY['email', 'push']::notification_type[]
+WHERE template_name = 'login-alert';
+
+UPDATE notification_templates 
+SET supported_channels = ARRAY['email', 'push']::notification_type[]
+WHERE template_name = 'password-changed';
+
+UPDATE notification_templates 
+SET supported_channels = ARRAY['email', 'push']::notification_type[]
+WHERE template_name = 'suspicious-activity';
+
+UPDATE notification_templates 
+SET supported_channels = ARRAY['email', 'push']::notification_type[]
+WHERE template_name = 'chat-service-alert';
+
+UPDATE notification_templates 
+SET supported_channels = ARRAY['email', 'push']::notification_type[]
+WHERE template_name = 'crisis-intervention';
+
+UPDATE notification_templates 
+SET supported_channels = ARRAY['email']::notification_type[]
+WHERE template_name = 'account-deactivated';
+
+UPDATE notification_templates 
+SET supported_channels = ARRAY['email', 'push', 'in_app']::notification_type[]
+WHERE template_name = 'appointment-confirmed';
+
+UPDATE notification_templates 
+SET supported_channels = ARRAY['email', 'push', 'in_app']::notification_type[]
+WHERE template_name = 'appointment-cancelled';
+
+UPDATE notification_templates 
+SET supported_channels = ARRAY['email', 'sms', 'push']::notification_type[]
+WHERE template_name = 'appointment-reminder';
+
+UPDATE notification_templates 
+SET supported_channels = ARRAY['push', 'in_app']::notification_type[]
+WHERE template_name = 'mood-reminder';
+
+UPDATE notification_templates 
+SET supported_channels = ARRAY['email', 'in_app']::notification_type[]
+WHERE template_name = 'welcome';
+
+-- Verify the changes
+SELECT template_name, supported_channels, variables 
+FROM notification_templates 
+ORDER BY template_name;
 
 
 -- Insert default notification preferences for common categories
