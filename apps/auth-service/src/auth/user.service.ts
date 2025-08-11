@@ -35,6 +35,7 @@ export class UserService {
     @InjectRepository(UserSession)
     private readonly sessionRepository: Repository<UserSession>,
     @InjectRepository(CounselorProfile)
+    private readonly counselorProfileRepository: Repository<CounselorProfile>,
     private readonly redisService: RedisService,
     private readonly sessionService: SessionService,
     private readonly notificationClient: NotificationServiceClient,

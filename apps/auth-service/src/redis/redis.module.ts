@@ -13,6 +13,7 @@ import { ThrottlerStorageRedisService } from '../throttler/throttler-storage-red
         const client = createClient({
           url: configService.get<string>('REDIS_URL'),
         });
+        client.on('error', (err) => console.error('Redis Client Error', err));
         await client.connect();
         return client;
       },
