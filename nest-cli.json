@@ -40,6 +40,15 @@
         "tsConfigPath": "apps/chat-service/tsconfig.app.json"
       }
     },
+    "mood-service": {
+      "type": "application",
+      "root": "apps/mood-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/mood-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/mood-service/tsconfig.app.json"
+      }
+    },
     "notification-service": {
       "type": "application",
       "root": "apps/notification-service",

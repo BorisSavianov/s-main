@@ -369,8 +369,8 @@ services:
 
   mood-service:
     build:
-      context: ./apps/mood-service
-      dockerfile: Dockerfile
+      context: ./
+      dockerfile: Dockerfile-mood
     container_name: serenity_space_mood
     environment:
       - NODE_ENV=${NODE_ENV}
@@ -588,8 +588,7 @@ services:
     image: rediscommander/redis-commander:latest
     container_name: serenity_space_redis_commander
     environment:
-      - REDIS_HOSTS=local:redis:6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
     ports:
       - '8082:8081'
     depends_on:
