@@ -23,7 +23,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 
-import { MoodEntriesService } from './mood-entries.serivce';
+import { MoodEntriesService } from './mood-entries.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { GetUser } from '../decorators/get-user.decorator';
 

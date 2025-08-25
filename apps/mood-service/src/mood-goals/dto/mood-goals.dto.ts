@@ -8,6 +8,8 @@ import {
   Min,
   Max,
   MaxLength,
+  IsInt,
+  IsEnum,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -97,4 +99,50 @@ export class MoodGoalResponseDto {
 
   @ApiProperty({ example: '2024-01-15T10:00:00.000Z' })
   updatedAt: string;
+}
+
+export class MoodGoalSearchDto {
+  @ApiPropertyOptional({
+    example: 1,
+    description: 'Page number for pagination',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @ApiPropertyOptional({ example: 10, description: 'Number of items per page' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number = 10;
+
+  @ApiPropertyOptional({
+    example: 'weekly_average',
+    description: 'Filter by goal type',
+    enum: ['daily_rating', 'weekly_average', 'consistency'],
+  })
+  @IsOptional()
+  @IsEnum(['daily_rating', 'weekly_average', 'consistency'], {
+    message:
+      'goalType must be one of: daily_rating, weekly_average, consistency',
+  })
+  goalType?: string;
+
+  @ApiPropertyOptional({ example: true, description: 'Filter by active goals' })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  isActive?: boolean;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Filter by achieved goals',
+  })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  isAchieved?: boolean;
 }

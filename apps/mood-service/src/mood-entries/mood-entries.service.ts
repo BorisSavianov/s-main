@@ -284,7 +284,8 @@ export class MoodEntriesService {
 
     // Sort entries by date (most recent first)
     const sortedEntries = entries.sort(
-      (a, b) => b.entryDate.getTime() - a.entryDate.getTime(),
+      (a, b) =>
+        new Date(b.entryDate).getTime() - new Date(a.entryDate).getTime(),
     );
 
     let streak = 0;
@@ -296,7 +297,8 @@ export class MoodEntriesService {
       entryDate.setHours(0, 0, 0, 0);
 
       const diffDays = Math.floor(
-        (currentDate.getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24),
+        (currentDate.getTime() - new Date(entryDate).getTime()) /
+          (1000 * 60 * 60 * 24),
       );
 
       if (diffDays === streak) {
@@ -325,6 +327,11 @@ export class MoodEntriesService {
   }
 
   private transformToMoodEntryResponse(entry: MoodEntry): MoodEntryResponseDto {
+    const entryDate =
+      entry.entryDate instanceof Date
+        ? entry.entryDate
+        : new Date(entry.entryDate as any); // handle string from Postgres
+
     return {
       id: entry.id,
       userId: entry.userId,
@@ -340,7 +347,7 @@ export class MoodEntriesService {
       medicationTaken: entry.medicationTaken,
       triggers: entry.triggers || [],
       activities: entry.activities || [],
-      entryDate: entry.entryDate.toISOString().split('T')[0],
+      entryDate: entryDate.toISOString().split('T')[0],
       createdAt: entry.createdAt.toISOString(),
       updatedAt: entry.updatedAt.toISOString(),
     };

@@ -209,7 +209,16 @@ export class PaginatedMoodPatternsResponseDto {
   @ApiProperty({ type: [MoodPatternResponseDto] })
   patterns: MoodPatternResponseDto[];
 
-  @ApiProperty({ type: 'object' })
+  @ApiProperty({
+    type: 'object',
+    properties: {
+      page: { type: 'number' },
+      limit: { type: 'number' },
+      total: { type: 'number' },
+      pages: { type: 'number' },
+    },
+    additionalProperties: false,
+  })
   pagination: {
     page: number;
     limit: number;

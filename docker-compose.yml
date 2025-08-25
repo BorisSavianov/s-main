@@ -374,10 +374,12 @@ services:
     container_name: serenity_space_mood
     environment:
       - NODE_ENV=${NODE_ENV}
-      - PORT=4005
+      - PORT_MOOD=4005
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
     ports:
       - '4005:4005'
     depends_on:
@@ -386,7 +388,7 @@ services:
       redis:
         condition: service_healthy
       auth-service:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4005/api/v1/health']
       interval: 30s

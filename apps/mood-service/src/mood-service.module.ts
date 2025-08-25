@@ -24,6 +24,8 @@ import {
   PrometheusController,
   PrometheusModule,
 } from '@willsoto/nestjs-prometheus';
+import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
 
 @Module({
   imports: [
@@ -81,10 +83,20 @@ import {
       inject: [ConfigService],
     }),
 
+    JwtModule.registerAsync({
+      useFactory: () => ({
+        secret: process.env.JWT_SECRET,
+        signOptions: {
+          expiresIn: process.env.JWT_EXPIRES_IN,
+        },
+      }),
+    }),
+
     // Health checks
     HealthModule,
 
     // Application modules
+    PassportModule,
     DatabaseModule,
     RedisModule,
     AuthModule,
@@ -94,7 +106,7 @@ import {
     MoodInsightsModule,
     MoodTriggersModule,
   ],
-  controllers: [PrometheusController],
-  providers: [],
+  controllers: [],
+  providers: [PrometheusController],
 })
 export class AppModule {}

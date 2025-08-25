@@ -273,7 +273,7 @@ export class MoodPatternsService {
 
     // Group entries by day of week
     entries.forEach((entry) => {
-      const dayOfWeek = (entry.entryDate.getDay() + 6) % 7; // Convert Sunday=0 to Monday=0
+      const dayOfWeek = (new Date(entry.entryDate).getDay() + 6) % 7; // Convert Sunday=0 to Monday=0
       dayData[dayOfWeek].ratings.push(entry.rating);
       dayData[dayOfWeek].count++;
     });
@@ -317,7 +317,9 @@ export class MoodPatternsService {
 
     // Group entries by week of month
     entries.forEach((entry) => {
-      const weekOfMonth = Math.floor((entry.entryDate.getDate() - 1) / 7);
+      const weekOfMonth = Math.floor(
+        (new Date(entry.entryDate).getDate() - 1) / 7,
+      );
       const week = Math.min(weekOfMonth, 3); // Cap at week 3 (0-indexed)
       weekData[week].ratings.push(entry.rating);
       weekData[week].count++;
@@ -362,7 +364,7 @@ export class MoodPatternsService {
 
     // Group entries by hour of creation (using createdAt since entryDate is date only)
     entries.forEach((entry) => {
-      const hour = entry.createdAt.getHours();
+      const hour = new Date(entry.createdAt).getHours();
       hourData[hour].ratings.push(entry.rating);
       hourData[hour].count++;
     });
@@ -596,7 +598,7 @@ export class MoodPatternsService {
     const weekGroups: { [key: string]: MoodEntry[] } = {};
 
     entries.forEach((entry) => {
-      const weekStart = this.getWeekStart(entry.entryDate);
+      const weekStart = this.getWeekStart(new Date(entry.entryDate));
       const weekKey = weekStart.toISOString().split('T')[0];
 
       if (!weekGroups[weekKey]) {
@@ -651,7 +653,7 @@ export class MoodPatternsService {
     const monthGroups: { [key: string]: MoodEntry[] } = {};
 
     entries.forEach((entry) => {
-      const monthKey = `${entry.entryDate.getFullYear()}-${String(entry.entryDate.getMonth() + 1).padStart(2, '0')}`;
+      const monthKey = `${new Date(entry.entryDate).getFullYear()}-${String(new Date(entry.entryDate).getMonth() + 1).padStart(2, '0')}`;
 
       if (!monthGroups[monthKey]) {
         monthGroups[monthKey] = [];

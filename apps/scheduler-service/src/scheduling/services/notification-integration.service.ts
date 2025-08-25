@@ -128,8 +128,6 @@ export class NotificationIntegrationService {
   private getServiceToken(): string {
     // In a real implementation, you would generate or retrieve a service-to-service JWT token
     // For now, return the regular JWT secret or implement service authentication
-    return (
-      this.configService.get('SERVICE_JWT_TOKEN') || 'service-token-placeholder'
-    );
+    return this.configService.get('JWT_SECRET') || 'service-token-placeholder';
   }
 }

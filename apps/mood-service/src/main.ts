@@ -76,9 +76,7 @@ async function bootstrap() {
 
   await app.listen(port);
   logger.log(`🚀 Mood Service running on port ${port} in ${nodeEnv} mode`);
-  logger.log(
-    `📚 API Documentation available at http://localhost:${port}/api/docs`,
-  );
+  logger.log(`📚 API Documentation available at http://localhost:${port}/docs`);
 }
 
 bootstrap().catch((error) => {
