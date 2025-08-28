@@ -90,6 +90,15 @@
       "compilerOptions": {
         "tsConfigPath": "apps/user-service/tsconfig.app.json"
       }
+    },
+    "video-service": {
+      "type": "application",
+      "root": "apps/video-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/video-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/video-service/tsconfig.app.json"
+      }
     }
   }
 }

@@ -310,6 +310,7 @@ services:
       - NODE_ENV=${NODE_ENV}
       - PORT_CHAT=${PORT_CHAT}
       - PORT_AUTH=${PORT_AUTH}
+      - PORT_SCHEDULE=${PORT_SCHEDULE}
       - PORT_NOTIFICATION=${PORT_NOTIFICATION}
       - DATABASE_URL=${DATABASE_URL}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -341,12 +342,12 @@ services:
 
   video-service:
     build:
-      context: ./apps/video-service
-      dockerfile: Dockerfile
+      context: ./
+      dockerfile: Dockerfile-video
     container_name: serenity_space_video
     environment:
       - NODE_ENV=${NODE_ENV}
-      - PORT=4004
+      - PORT_VIDEO=${PORT_VIDEO}
       - REDIS_URL=${REDIS_URL}
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
       - TURN_SECRET=your-turn-secret-change-in-production

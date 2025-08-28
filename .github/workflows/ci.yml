@@ -118,6 +118,8 @@ jobs:
             dockerfile: Dockerfile-auth
           - service: chat-service
             dockerfile: Dockerfile-chat
+          - service: mood-service
+            dockerfile: Dockerfile-schedule
           - service: notification-service
             dockerfile: Dockerfile-notification
           - service: scheduler-service
