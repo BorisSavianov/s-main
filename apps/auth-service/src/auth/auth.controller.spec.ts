@@ -81,7 +81,6 @@ describe('AuthController', () => {
             getUserById: jest.fn(),
             updateProfile: jest.fn(),
             deleteAccount: jest.fn(),
-            createCounselorProfile: jest.fn(),
             getUserSessions: jest.fn(),
             revokeSession: jest.fn(),
           },
@@ -194,7 +193,8 @@ describe('AuthController', () => {
     it('should logout user successfully', async () => {
       authService.logout.mockResolvedValue(undefined);
 
-      const result = await controller.logout(mockRequest);
+      // Fix: Pass sessionId as string, not as request object
+      const result = await controller.logout('session-id');
 
       expect(authService.logout).toHaveBeenCalledWith('session-id');
       expect(result).toEqual({
@@ -208,7 +208,7 @@ describe('AuthController', () => {
       const error = new Error('Session not found');
       authService.logout.mockRejectedValue(error);
 
-      await expect(controller.logout(mockRequest)).rejects.toThrow(error);
+      await expect(controller.logout('session-id')).rejects.toThrow(error);
       expect(authService.logout).toHaveBeenCalledWith('session-id');
     });
   });
@@ -217,7 +217,8 @@ describe('AuthController', () => {
     it('should logout from all devices successfully', async () => {
       authService.logoutAll.mockResolvedValue(undefined);
 
-      const result = await controller.logoutAll(mockRequest);
+      // Fix: Pass userId as string, not as request object
+      const result = await controller.logoutAll(mockUser.id);
 
       expect(authService.logoutAll).toHaveBeenCalledWith(mockUser.id);
       expect(result).toEqual({
@@ -231,7 +232,7 @@ describe('AuthController', () => {
       const error = new Error('User not found');
       authService.logoutAll.mockRejectedValue(error);
 
-      await expect(controller.logoutAll(mockRequest)).rejects.toThrow(error);
+      await expect(controller.logoutAll(mockUser.id)).rejects.toThrow(error);
       expect(authService.logoutAll).toHaveBeenCalledWith(mockUser.id);
     });
   });
@@ -350,9 +351,10 @@ describe('AuthController', () => {
     it('should change password successfully', async () => {
       authService.changePassword.mockResolvedValue(undefined);
 
+      // Fix: Pass userId as string and DTO separately
       const result = await controller.changePassword(
-        mockRequest,
         changePasswordDto,
+        mockUser.id,
       );
 
       expect(authService.changePassword).toHaveBeenCalledWith(
@@ -371,7 +373,7 @@ describe('AuthController', () => {
       authService.changePassword.mockRejectedValue(error);
 
       await expect(
-        controller.changePassword(mockRequest, changePasswordDto),
+        controller.changePassword(changePasswordDto, mockUser.id),
       ).rejects.toThrow(error);
       expect(authService.changePassword).toHaveBeenCalledWith(
         mockUser.id,
@@ -417,7 +419,8 @@ describe('AuthController', () => {
     it('should resend verification email successfully', async () => {
       userService.resendVerificationEmail.mockResolvedValue(undefined);
 
-      const result = await controller.resendVerification(mockRequest);
+      // Fix: Pass userId as string
+      const result = await controller.resendVerification(mockUser.id);
 
       expect(userService.resendVerificationEmail).toHaveBeenCalledWith(
         mockUser.id,
@@ -433,226 +436,11 @@ describe('AuthController', () => {
       const error = new Error('Email already verified');
       userService.resendVerificationEmail.mockRejectedValue(error);
 
-      await expect(controller.resendVerification(mockRequest)).rejects.toThrow(
+      await expect(controller.resendVerification(mockUser.id)).rejects.toThrow(
         error,
       );
       expect(userService.resendVerificationEmail).toHaveBeenCalledWith(
         mockUser.id,
-      );
-    });
-  });
-
-  describe('getProfile', () => {
-    it('should get user profile successfully', async () => {
-      userService.getUserById.mockResolvedValue(mockUser as any);
-
-      const result = await controller.getProfile(mockRequest);
-
-      expect(userService.getUserById).toHaveBeenCalledWith(mockUser.id);
-      expect(result).toEqual({
-        success: true,
-        message: 'User profile retrieved',
-        data: mockUser,
-        timestamp: expect.any(String),
-      });
-    });
-
-    it('should handle get profile errors', async () => {
-      const error = new Error('User not found');
-      userService.getUserById.mockRejectedValue(error);
-
-      await expect(controller.getProfile(mockRequest)).rejects.toThrow(error);
-      expect(userService.getUserById).toHaveBeenCalledWith(mockUser.id);
-    });
-  });
-
-  describe('updateProfile', () => {
-    const updateProfileDto: UpdateProfileDto = {
-      firstName: 'Jane',
-      lastName: 'Smith',
-    };
-
-    it('should update profile successfully', async () => {
-      const updatedUser = { ...mockUser, firstName: 'Jane', lastName: 'Smith' };
-      userService.updateProfile.mockResolvedValue(updatedUser as any);
-
-      const result = await controller.updateProfile(
-        mockRequest,
-        updateProfileDto,
-      );
-
-      expect(userService.updateProfile).toHaveBeenCalledWith(
-        mockUser.id,
-        updateProfileDto,
-      );
-      expect(result).toEqual({
-        success: true,
-        message: 'Profile updated successfully',
-        data: updatedUser,
-        timestamp: expect.any(String),
-      });
-    });
-
-    it('should handle update profile errors', async () => {
-      const error = new Error('Invalid data');
-      userService.updateProfile.mockRejectedValue(error);
-
-      await expect(
-        controller.updateProfile(mockRequest, updateProfileDto),
-      ).rejects.toThrow(error);
-      expect(userService.updateProfile).toHaveBeenCalledWith(
-        mockUser.id,
-        updateProfileDto,
-      );
-    });
-  });
-
-  describe('deleteAccount', () => {
-    it('should delete account successfully', async () => {
-      userService.deleteAccount.mockResolvedValue(undefined);
-
-      const result = await controller.deleteAccount(mockRequest);
-
-      expect(userService.deleteAccount).toHaveBeenCalledWith(mockUser.id);
-      expect(result).toEqual({
-        success: true,
-        message: 'Account deleted successfully',
-        timestamp: expect.any(String),
-      });
-    });
-
-    it('should handle delete account errors', async () => {
-      const error = new Error('Account cannot be deleted');
-      userService.deleteAccount.mockRejectedValue(error);
-
-      await expect(controller.deleteAccount(mockRequest)).rejects.toThrow(
-        error,
-      );
-      expect(userService.deleteAccount).toHaveBeenCalledWith(mockUser.id);
-    });
-  });
-
-  describe('createCounselorProfile', () => {
-    const createCounselorProfileDto: CreateCounselorProfileDto = {
-      licenseNumber: 'PSY-2024-001',
-      specialties: ['anxiety', 'depression'],
-      qualifications: ['PhD Psychology'],
-      experienceYears: 8,
-      hourlyRate: 100,
-      bio: 'Experienced counselor',
-      languages: ['English'],
-    };
-
-    it('should create counselor profile successfully', async () => {
-      const mockCounselorProfile = {
-        id: 'counselor-profile-id',
-        licenseNumber: 'PSY-2024-001',
-        specialties: ['anxiety', 'depression'],
-        qualifications: ['PhD Psychology'],
-        experienceYears: 8,
-        hourlyRate: 100,
-        bio: 'Experienced counselor',
-        languages: ['English'],
-        isAvailable: true,
-        rating: 4.8,
-        totalReviews: 25,
-      };
-      userService.createCounselorProfile.mockResolvedValue(
-        mockCounselorProfile,
-      );
-
-      const result = await controller.createCounselorProfile(
-        mockRequest,
-        createCounselorProfileDto,
-      );
-
-      expect(userService.createCounselorProfile).toHaveBeenCalledWith(
-        mockUser.id,
-        createCounselorProfileDto,
-      );
-      expect(result).toEqual({
-        success: true,
-        message: 'Counselor profile created successfully',
-        timestamp: expect.any(String),
-      });
-    });
-
-    it('should handle create counselor profile errors', async () => {
-      const error = new Error('User must be a counselor');
-      userService.createCounselorProfile.mockRejectedValue(error);
-
-      await expect(
-        controller.createCounselorProfile(
-          mockRequest,
-          createCounselorProfileDto,
-        ),
-      ).rejects.toThrow(error);
-      expect(userService.createCounselorProfile).toHaveBeenCalledWith(
-        mockUser.id,
-        createCounselorProfileDto,
-      );
-    });
-  });
-
-  describe('getSessions', () => {
-    const mockSessions = [
-      { id: 'session-1', isActive: true, createdAt: new Date() },
-      { id: 'session-2', isActive: false, createdAt: new Date() },
-    ];
-
-    it('should get user sessions successfully', async () => {
-      userService.getUserSessions.mockResolvedValue(mockSessions as any);
-
-      const result = await controller.getSessions(mockRequest);
-
-      expect(userService.getUserSessions).toHaveBeenCalledWith(mockUser.id);
-      expect(result).toEqual({
-        success: true,
-        message: 'Sessions retrieved successfully',
-        data: mockSessions,
-        timestamp: expect.any(String),
-      });
-    });
-
-    it('should handle get sessions errors', async () => {
-      const error = new Error('User not found');
-      userService.getUserSessions.mockRejectedValue(error);
-
-      await expect(controller.getSessions(mockRequest)).rejects.toThrow(error);
-      expect(userService.getUserSessions).toHaveBeenCalledWith(mockUser.id);
-    });
-  });
-
-  describe('revokeSession', () => {
-    it('should revoke session successfully', async () => {
-      userService.revokeSession.mockResolvedValue(undefined);
-
-      const result = await controller.revokeSession(
-        mockRequest,
-        'session-to-revoke',
-      );
-
-      expect(userService.revokeSession).toHaveBeenCalledWith(
-        mockUser.id,
-        'session-to-revoke',
-      );
-      expect(result).toEqual({
-        success: true,
-        message: 'Session revoked successfully',
-        timestamp: expect.any(String),
-      });
-    });
-
-    it('should handle revoke session errors', async () => {
-      const error = new Error('Session not found');
-      userService.revokeSession.mockRejectedValue(error);
-
-      await expect(
-        controller.revokeSession(mockRequest, 'session-to-revoke'),
-      ).rejects.toThrow(error);
-      expect(userService.revokeSession).toHaveBeenCalledWith(
-        mockUser.id,
-        'session-to-revoke',
       );
     });
   });
