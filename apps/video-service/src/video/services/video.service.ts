@@ -4,6 +4,8 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -40,6 +42,7 @@ export class VideoService {
     @InjectRepository(VideoSession)
     private sessionRepository: Repository<VideoSession>,
     private configService: ConfigService,
+    @Inject(forwardRef(() => VideoGateway))
     private videoGateway: VideoGateway,
     private schedulingIntegration: SchedulingIntegrationService,
   ) {
@@ -419,7 +422,7 @@ export class VideoService {
   async updateParticipantMedia(
     roomId: string,
     userId: string,
-    mediaState: { video: boolean; audio: boolean; screenShare?: boolean },
+    mediaState: { video?: boolean; audio?: boolean; screenShare?: boolean },
   ): Promise<void> {
     const participant = await this.participantRepository.findOne({
       where: { roomId, userId },

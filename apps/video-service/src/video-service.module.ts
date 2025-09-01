@@ -5,6 +5,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { HealthModule } from './health/health.module';
 import { VideoModule } from './video/services/video.module';
+import {
+  PrometheusController,
+  PrometheusModule,
+} from '@willsoto/nestjs-prometheus';
 
 @Module({
   imports: [
@@ -13,18 +17,27 @@ import { VideoModule } from './video/services/video.module';
       envFilePath: ['.env.local', '.env'],
     }),
 
+    // Prometheus metrics
+    PrometheusModule.register({
+      defaultMetrics: {
+        enabled: true,
+        config: { prefix: 'user_service_' },
+      },
+    }),
+
+    // Database
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        host: configService.get('POSTGRES_HOST', 'localhost'),
-        port: configService.get('POSTGRES_PORT', 5432),
-        username: configService.get('POSTGRES_USER', 'postgres'),
-        password: configService.get('POSTGRES_PASSWORD', 'password'),
-        database: configService.get('POSTGRES_DB', 'serenity_space'),
+        url: configService.get<string>('DATABASE_URL'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: configService.get('NODE_ENV') === 'development',
-        logging: configService.get('NODE_ENV') === 'development',
+        synchronize: false, // Use migrations in production
+        logging: configService.get<string>('NODE_ENV') === 'development',
+        ssl:
+          configService.get<string>('NODE_ENV') === 'production'
+            ? { rejectUnauthorized: false }
+            : false,
       }),
       inject: [ConfigService],
     }),
@@ -55,5 +68,6 @@ import { VideoModule } from './video/services/video.module';
     HealthModule,
     VideoModule,
   ],
+  controllers: [PrometheusController],
 })
 export class AppModule {}

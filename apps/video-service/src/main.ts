@@ -61,12 +61,12 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   // Start server
-  const port = configService.get('PORT_VIDEO', 4005);
+  const port = configService.get('PORT_VIDEO', 40045);
   await app.listen(port);
 
   console.log(`🎥 Video Service is running on port ${port}`);
   console.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
-  console.log(`🔌 WebSocket endpoint: ws://localhost:4006/video`);
+  console.log(`🔌 WebSocket endpoint: ws://localhost:4004/video`);
 }
 
 bootstrap().catch((error) => {

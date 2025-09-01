@@ -10,7 +10,14 @@ import {
   OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import {
+  forwardRef,
+  Inject,
+  Logger,
+  UseGuards,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
 import { JwtAuthGuard } from 'apps/user-service/src/auth/guards/jwt-auth.guard';
 import { VideoService } from '../services/video.service';
 import { VideoParticipant } from '../entities/video-participant.entity';
@@ -34,7 +41,7 @@ interface ChatMessage {
   type: 'text' | 'emoji' | 'system';
 }
 
-@WebSocketGateway(4006, {
+@WebSocketGateway({
   cors: {
     origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
     credentials: true,
@@ -51,7 +58,10 @@ export class VideoGateway
   private connectedClients: Map<string, AuthenticatedSocket> = new Map();
   private roomParticipants: Map<string, Set<string>> = new Map();
 
-  constructor(private videoService: VideoService) {}
+  constructor(
+    @Inject(forwardRef(() => VideoService))
+    private videoService: VideoService,
+  ) {}
 
   afterInit(server: Server) {
     this.logger.log('Video WebSocket Gateway initialized');

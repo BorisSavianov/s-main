@@ -351,13 +351,16 @@ services:
       - REDIS_URL=${REDIS_URL}
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
       - TURN_SECRET=your-turn-secret-change-in-production
+      - DATABASE_URL=${DATABASE_URL}
     ports:
       - '4004:4004'
     depends_on:
       redis:
         condition: service_healthy
-      auth-service:
+      postgres:
         condition: service_healthy
+      auth-service:
+        condition: service_started
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4004/api/v1/health']
       interval: 30s
