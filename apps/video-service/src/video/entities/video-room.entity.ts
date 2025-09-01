@@ -19,31 +19,31 @@ export class VideoRoom {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true })
+  @Column({ name: 'room_id', unique: true })
   roomId: string;
 
-  @Column({ nullable: true })
+  @Column({ name: 'meeting_id', nullable: true })
   meetingId: string;
 
-  @Column()
+  @Column({ name: 'host_user_id' })
   hostUserId: string;
 
-  @Column()
+  @Column({ name: 'access_code' })
   accessCode: string;
 
-  @Column()
+  @Column({ name: 'moderator_code' })
   moderatorCode: string;
 
-  @Column({ default: 2 })
+  @Column({ name: 'max_participants', default: 2 })
   maxParticipants: number;
 
-  @Column({ default: false })
+  @Column({ name: 'is_recording_enabled', default: false })
   isRecordingEnabled: boolean;
 
-  @Column({ default: false })
+  @Column({ name: 'is_recording_active', default: false })
   isRecordingActive: boolean;
 
-  @Column('json', { nullable: true })
+  @Column('json', { name: 'room_settings', nullable: true })
   roomSettings: {
     audioEnabled: boolean;
     videoEnabled: boolean;
@@ -55,7 +55,7 @@ export class VideoRoom {
     maxVideosVisible?: number;
   };
 
-  @Column('json', { nullable: true })
+  @Column('json', { name: 'rtc_configuration', nullable: true })
   rtcConfiguration: {
     iceServers: Array<{
       urls: string | string[];
@@ -65,19 +65,20 @@ export class VideoRoom {
   };
 
   @Column({
+    name: 'status',
     type: 'enum',
     enum: ['waiting', 'active', 'ended', 'cancelled'],
     default: 'waiting',
   })
   status: RoomStatus;
 
-  @Column({ nullable: true })
+  @Column({ name: 'started_at', nullable: true })
   startedAt: Date;
 
-  @Column({ nullable: true })
+  @Column({ name: 'ended_at', nullable: true })
   endedAt: Date;
 
-  @Column({ nullable: true })
+  @Column({ name: 'recording_url', nullable: true })
   recordingUrl: string;
 
   @Column('json', { nullable: true })
@@ -96,10 +97,10 @@ export class VideoRoom {
   @OneToMany(() => VideoSession, (session) => session.room, { cascade: true })
   sessions: VideoSession[];
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
   // Virtual properties

@@ -21,23 +21,24 @@ export class VideoSession {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ name: 'room_id' })
   roomId: string;
 
-  @Column()
+  @Column({ name: 'initiator_user_id' })
   initiatorUserId: string;
 
   @Column({
+    name: 'type',
     type: 'enum',
     enum: ['video_call', 'screen_share', 'recording', 'live_stream'],
     default: 'video_call',
   })
   type: SessionType;
 
-  @Column({ nullable: true })
+  @Column({ name: 'ended_at', nullable: true })
   endedAt: Date;
 
-  @Column('json', { nullable: true })
+  @Column('json', { name: 'session_data', nullable: true })
   sessionData: {
     quality?: 'low' | 'medium' | 'high' | 'hd';
     bandwidth?: number;
@@ -54,7 +55,7 @@ export class VideoSession {
     };
   };
 
-  @Column('json', { nullable: true })
+  @Column('json', { name: 'recording_metadata', nullable: true })
   recordingMetadata: {
     fileName?: string;
     filePath?: string;
@@ -65,13 +66,13 @@ export class VideoSession {
   };
 
   @ManyToOne(() => VideoRoom, (room) => room.sessions, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'roomId', referencedColumnName: 'roomId' })
+  @JoinColumn({ name: 'room_id', referencedColumnName: 'roomId' })
   room: VideoRoom;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'started_at' })
   startedAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
   // Virtual properties

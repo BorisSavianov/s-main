@@ -22,13 +22,13 @@ export class VideoParticipant {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ name: 'room_id' })
   roomId: string;
 
-  @Column()
+  @Column({ name: 'user_id' })
   userId: string;
 
-  @Column()
+  @Column({ name: 'display_name' })
   displayName: string;
 
   @Column({
@@ -45,7 +45,7 @@ export class VideoParticipant {
   })
   status: ParticipantStatus;
 
-  @Column('json', { nullable: true })
+  @Column('json', { name: 'device_capabilities', nullable: true })
   deviceCapabilities: {
     video: boolean;
     audio: boolean;
@@ -53,7 +53,7 @@ export class VideoParticipant {
     recording?: boolean;
   };
 
-  @Column('json', { nullable: true })
+  @Column('json', { name: 'media_state', nullable: true })
   mediaState: {
     video: boolean;
     audio: boolean;
@@ -62,7 +62,7 @@ export class VideoParticipant {
     dominantSpeaker?: boolean;
   };
 
-  @Column('json', { nullable: true })
+  @Column('json', { name: 'connection_stats', nullable: true })
   connectionStats: {
     joinTime?: Date;
     connectionQuality?: 'excellent' | 'good' | 'poor';
@@ -71,13 +71,13 @@ export class VideoParticipant {
     latency?: number;
   };
 
-  @Column({ nullable: true })
+  @Column({ name: 'avatar_url', nullable: true })
   avatarUrl: string;
 
-  @Column({ nullable: true })
+  @Column({ name: 'last_seen', nullable: true })
   lastSeen: Date;
 
-  @Column({ nullable: true })
+  @Column({ name: 'left_at', nullable: true })
   leftAt: Date;
 
   @Column('json', { nullable: true })
@@ -91,13 +91,13 @@ export class VideoParticipant {
   @ManyToOne(() => VideoRoom, (room) => room.participants, {
     onDelete: 'CASCADE',
   })
-  @JoinColumn({ name: 'roomId', referencedColumnName: 'roomId' })
+  @JoinColumn({ name: 'room_id', referencedColumnName: 'roomId' })
   room: VideoRoom;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'joined_at' })
   joinedAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
   // Virtual properties
