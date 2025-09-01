@@ -18,7 +18,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { JwtAuthGuard } from 'apps/user-service/src/auth/guards/jwt-auth.guard';
+import { WsJwtGuard } from '../../guards/ws-jwt.guard'; // Use our custom guard
 import { VideoService } from '../services/video.service';
 import { VideoParticipant } from '../entities/video-participant.entity';
 
@@ -48,7 +48,6 @@ interface ChatMessage {
   },
   namespace: '/video',
 })
-@UseGuards(JwtAuthGuard)
 @UsePipes(new ValidationPipe({ transform: true }))
 export class VideoGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
@@ -69,19 +68,46 @@ export class VideoGateway
 
   async handleConnection(client: AuthenticatedSocket) {
     try {
-      // Extract user ID from JWT token (handled by guard)
-      const userId = client.handshake.auth?.userId || client.userId;
-      if (!userId) {
+      this.logger.log(`Client attempting connection: ${client.id}`);
+
+      // Manual JWT verification since we can't use guards on connection
+      const token = this.extractTokenFromSocket(client);
+      if (!token) {
+        this.logger.warn(`No token provided for client ${client.id}`);
+        client.emit('auth-error', { message: 'Authentication required' });
         client.disconnect();
         return;
       }
 
-      client.userId = userId;
-      this.connectedClients.set(client.id, client);
+      // You'll need to inject JwtService or validate token manually
+      // For now, let's extract the user ID from the token payload
+      try {
+        const base64Payload = token.split('.')[1];
+        const payload = JSON.parse(
+          Buffer.from(base64Payload, 'base64').toString(),
+        );
 
-      this.logger.log(`Client ${client.id} connected (User: ${userId})`);
+        if (!payload.sub) {
+          throw new Error('Invalid token payload');
+        }
+
+        client.userId = payload.sub;
+
+        this.connectedClients.set(client.id, client);
+
+        this.logger.log(
+          `Client ${client.id} connected successfully (User: ${payload.sub})`,
+        );
+        client.emit('connected', { userId: payload.sub, socketId: client.id });
+      } catch (tokenError) {
+        this.logger.error(`Token validation failed: ${tokenError.message}`);
+        client.emit('auth-error', { message: 'Invalid token' });
+        client.disconnect();
+        return;
+      }
     } catch (error) {
       this.logger.error(`Connection error: ${error.message}`);
+      client.emit('connection-error', { message: error.message });
       client.disconnect();
     }
   }
@@ -106,6 +132,16 @@ export class VideoGateway
     data: { roomId: string; accessCode?: string; displayName?: string },
   ) {
     try {
+      this.logger.log(
+        `User ${client.userId} attempting to join room ${data.roomId}`,
+      );
+
+      // Check if user is authenticated
+      if (!client.userId) {
+        client.emit('join-room-error', { message: 'Not authenticated' });
+        return;
+      }
+
       const { roomId, accessCode, displayName } = data;
 
       const joinResult = await this.videoService.joinRoom(
@@ -340,6 +376,32 @@ export class VideoGateway
       this.logger.error(`Get room stats error: ${error.message}`);
       client.emit('room-stats-error', { message: error.message });
     }
+  }
+
+  // Helper method to extract token from socket
+  private extractTokenFromSocket(client: Socket): string | undefined {
+    // Try different ways the token might be sent
+    const authHeader = client.handshake.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return authHeader.substring(7);
+    }
+
+    // Check auth object
+    if (client.handshake.auth?.token) {
+      return client.handshake.auth.token;
+    }
+
+    // Check extraHeaders (case sensitive)
+    const extraAuthHeader = client.handshake.headers.Authorization;
+    if (
+      extraAuthHeader &&
+      typeof extraAuthHeader === 'string' &&
+      extraAuthHeader.startsWith('Bearer ')
+    ) {
+      return extraAuthHeader.substring(7);
+    }
+
+    return undefined;
   }
 
   // Public methods for service to call

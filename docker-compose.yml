@@ -352,6 +352,11 @@ services:
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
       - TURN_SECRET=your-turn-secret-change-in-production
       - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL}
     ports:
       - '4004:4004'
     depends_on:

@@ -227,7 +227,7 @@ CREATE TRIGGER update_video_room_invitations_updated_at
 
 -- Function to automatically create video session when room becomes active
 CREATE OR REPLACE FUNCTION create_video_session_on_room_start()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
     -- When room status changes from 'waiting' to 'active', create a session
     IF OLD.status = 'waiting' AND NEW.status = 'active' THEN
@@ -237,7 +237,7 @@ BEGIN
     
     RETURN NEW;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER create_video_session_on_room_start_trigger
     AFTER UPDATE ON video_rooms
@@ -245,7 +245,7 @@ CREATE TRIGGER create_video_session_on_room_start_trigger
 
 -- Function to end video session when room ends
 CREATE OR REPLACE FUNCTION end_video_session_on_room_end()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
     -- When room status changes to 'ended', end all active sessions
     IF OLD.status = 'active' AND NEW.status = 'ended' THEN
@@ -261,7 +261,7 @@ BEGIN
     
     RETURN NEW;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER end_video_session_on_room_end_trigger
     AFTER UPDATE ON video_rooms
@@ -269,7 +269,7 @@ CREATE TRIGGER end_video_session_on_room_end_trigger
 
 -- Function to update participant last_seen timestamp
 CREATE OR REPLACE FUNCTION update_participant_last_seen()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
     -- Update last_seen when media_state or connection_stats change
     IF OLD.media_state IS DISTINCT FROM NEW.media_state OR 
@@ -279,7 +279,7 @@ BEGIN
     
     RETURN NEW;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER update_participant_last_seen_trigger
     BEFORE UPDATE ON video_participants
@@ -287,17 +287,17 @@ CREATE TRIGGER update_participant_last_seen_trigger
 
 -- Function to automatically clean up expired invitations
 CREATE OR REPLACE FUNCTION cleanup_expired_invitations()
-RETURNS void AS $
+RETURNS void AS $$
 BEGIN
     DELETE FROM video_room_invitations 
     WHERE expires_at < CURRENT_TIMESTAMP 
       AND response = 'pending';
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- Function to automatically cleanup old ended rooms (run periodically)
 CREATE OR REPLACE FUNCTION cleanup_old_video_rooms()
-RETURNS INTEGER AS $
+RETURNS INTEGER AS $$
 DECLARE
     cleanup_count INTEGER;
 BEGIN
@@ -311,7 +311,7 @@ BEGIN
     
     RETURN cleanup_count;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- Add some sample data for testing (optional)
 -- This would typically be done through the application, but useful for development

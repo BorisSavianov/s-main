@@ -9,6 +9,18 @@ import {
   PrometheusController,
   PrometheusModule,
 } from '@willsoto/nestjs-prometheus';
+import { VideoParticipant } from './video/entities/video-participant.entity';
+import { VideoRoom } from './video/entities/video-room.entity';
+import { VideoSession } from './video/entities/video-session.entity';
+import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
+import { CounselorProfile } from 'apps/auth-service/src/database/entities/counselor-profile.entity';
+import { OAuthProvider } from 'apps/auth-service/src/database/entities/oauth-provider.entity';
+import { UserSession } from 'apps/auth-service/src/database/entities/user-session.entity';
+import { User } from 'apps/auth-service/src/database/entities/user.entity';
+import { Notification } from 'apps/notification-service/src/notifications/entities/notification.entity';
+import { PushSubscription } from 'apps/notification-service/src/notifications/entities/push-subscription.entity';
+import { NotificationTemplate } from 'apps/notification-service/src/templates/entities/notification-template.entity';
+import { NotificationPreference } from 'apps/notification-service/src/prefrences/entities/notification-prefrence.entity';
 
 @Module({
   imports: [
@@ -31,7 +43,19 @@ import {
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         url: configService.get<string>('DATABASE_URL'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        entities: [
+          VideoParticipant,
+          VideoRoom,
+          VideoSession,
+          User,
+          UserSession,
+          OAuthProvider,
+          CounselorProfile,
+          Notification,
+          PushSubscription,
+          NotificationTemplate,
+          NotificationPreference,
+        ],
         synchronize: false, // Use migrations in production
         logging: configService.get<string>('NODE_ENV') === 'development',
         ssl:
@@ -67,6 +91,7 @@ import {
 
     HealthModule,
     VideoModule,
+    AuthCoreModule,
   ],
   controllers: [PrometheusController],
 })

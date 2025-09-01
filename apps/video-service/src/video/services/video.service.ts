@@ -149,7 +149,7 @@ export class VideoService {
     // Find and validate room
     const room = await this.roomRepository.findOne({
       where: { roomId },
-      relations: ['participants', 'meeting'],
+      relations: ['participants'],
     });
 
     if (!room) {
