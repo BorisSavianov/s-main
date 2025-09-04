@@ -122,8 +122,6 @@ jobs:
             dockerfile: Dockerfile-schedule
           - service: notification-service
             dockerfile: Dockerfile-notification
-          - service: scheduler-service
-            dockerfile: Dockerfile-scheduler
           - service: user-service
             dockerfile: Dockerfile-user
 
