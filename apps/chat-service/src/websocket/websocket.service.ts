@@ -12,6 +12,8 @@ import { ChatMessage } from '../chat/entities/chat-message.entity';
 import { AiContext } from '../ai/entities/ai-context.entity';
 
 import { SenderType } from '../chat/entities/chat-message.entity';
+import { UserService } from 'apps/auth-service/src/auth/user.service';
+import { GetUser } from 'apps/auth-service/src/auth/decorators/get-user.decorator';
 
 interface CreateMessageDto {
   sessionId: string;
@@ -33,14 +35,14 @@ export class WebSocketService {
     private readonly messageRepository: Repository<ChatMessage>,
     @InjectRepository(AiContext)
     private readonly contextRepository: Repository<AiContext>,
-    @Inject('AUTH_SERVICE')
-    private readonly authService: ClientProxy,
     @InjectQueue('message-processing')
     private readonly messageProcessingQueue: Queue,
     @InjectQueue('ai-response')
     private readonly aiResponseQueue: Queue,
     @InjectQueue('analytics')
     private readonly analyticsQueue: Queue,
+    @Inject()
+    private readonly userService: UserService,
   ) {}
 
   setServer(server: Server) {
@@ -53,12 +55,11 @@ export class WebSocketService {
   async validateSessionAccess(
     sessionId: string,
     client: Socket,
-    userToken?: string,
+    userId?: string,
   ): Promise<boolean> {
     try {
       const session = await this.sessionRepository.findOne({
         where: { id: sessionId },
-        relations: ['user', 'counselor'],
       });
 
       if (!session) {
@@ -71,19 +72,21 @@ export class WebSocketService {
       }
 
       // Validate user token if provided
-      if (userToken) {
+      if (userId) {
         try {
-          const authResult = await this.authService
-            .send('validate_token', { token: userToken })
-            .toPromise();
+          // const authResult = await this.authService
+          //   .send('validate_token', { token: userToken })
+          //   .toPromise();
 
-          if (authResult.valid) {
-            return (
-              authResult.userId === session.userId ||
-              authResult.userId === session.counselorId ||
-              authResult.role === 'admin'
-            );
-          }
+          // if (authResult.valid) {
+
+          const authResult = await this.userService.getUserById(userId);
+          return (
+            authResult.id === session.userId ||
+            authResult.id === session.counselorId ||
+            authResult.role === 'admin'
+          );
+          // }
         } catch (error) {
           this.logger.error('Auth service validation failed:', error);
         }
@@ -237,7 +240,7 @@ export class WebSocketService {
       }
 
       // Check if message is from user
-      if (message.senderType !== 'user') {
+      if (message.senderType != 'user') {
         return false;
       }
 
@@ -267,22 +270,19 @@ export class WebSocketService {
   async generateAIResponse(
     sessionId: string,
     userMessage: string,
+    recentMessages: ChatMessage[],
   ): Promise<string> {
     try {
-      // Get or create AI context
-      const context = await this.getAIContext(sessionId);
-
-      // Get recent conversation history
-      const recentMessages = await this.getRecentMessages(sessionId, 10);
-
+      const context = {
+        sessionId: sessionId,
+        recentMessages: recentMessages,
+        userMessage: userMessage,
+      };
       // Add AI response job to queue with high priority
       const job = await this.aiResponseQueue.add(
         'generate-response',
         {
-          sessionId,
-          userMessage,
           context,
-          conversationHistory: recentMessages,
         },
         {
           priority: 1, // High priority
@@ -296,13 +296,6 @@ export class WebSocketService {
 
       // Wait for the job to complete
       const result = await job.finished();
-
-      // Update AI context with new interaction
-      await this.updateAIContext(sessionId, {
-        lastUserMessage: userMessage,
-        lastAIResponse: result.content,
-        interactionCount: (context.contextData?.interactionCount || 0) + 1,
-      });
 
       return result.content;
     } catch (error) {
@@ -349,26 +342,6 @@ export class WebSocketService {
   }
 
   /**
-   * Update AI context
-   */
-  private async updateAIContext(
-    sessionId: string,
-    updates: any,
-  ): Promise<void> {
-    try {
-      await this.contextRepository.update(
-        { sessionId },
-        {
-          contextData: updates,
-          updatedAt: new Date(),
-        },
-      );
-    } catch (error) {
-      this.logger.error(`Update AI context failed: ${error.message}`);
-    }
-  }
-
-  /**
    * Check if a counselor is active in session
    */
   private async isCounselorActive(sessionId: string): Promise<boolean> {
@@ -378,16 +351,16 @@ export class WebSocketService {
         select: ['counselorId'],
       });
 
-      if (!session?.counselorId) {
+      if (session?.counselorId === null || session?.counselorId === undefined) {
         return false;
       }
 
-      // Check with auth service if counselor is online
-      const counselorStatus = await this.authService
-        .send('get_user_status', { userId: session.counselorId })
-        .toPromise();
+      // Check with user service if counselor is online
+      const counselorStatus = await this.userService.getUserById(
+        session!.counselorId,
+      );
 
-      return counselorStatus.online && counselorStatus.available;
+      return counselorStatus.counselorProfile?.isAvailable!;
     } catch (error) {
       this.logger.error(`Check counselor active failed: ${error.message}`);
       return false;
@@ -567,19 +540,20 @@ export class WebSocketService {
   async queueAIResponse(
     sessionId: string,
     userMessage: string,
+    recentMessages: ChatMessage[],
     callback?: (response: string) => void,
   ): Promise<void> {
     try {
-      const context = await this.getAIContext(sessionId);
-      const recentMessages = await this.getRecentMessages(sessionId, 10);
+      const context = {
+        sessionId: sessionId,
+        recentMessages: recentMessages,
+        userMessage: userMessage,
+      };
 
       const job = await this.aiResponseQueue.add(
         'generate-response',
         {
-          sessionId,
-          userMessage,
           context,
-          conversationHistory: recentMessages,
         },
         {
           priority: 1,

@@ -35,7 +35,7 @@ export class WsThrottleGuard implements CanActivate {
     ['requestAI', { name: 'ai', ttl: 60000, limit: 10 }], // 10 AI requests per minute
 
     // Typing indicators (more lenient)
-    ['typing', { name: 'typing', ttl: 10000, limit: 20 }], // 20 typing events per 10 seconds
+    ['handleTyping', { name: 'handleTyping', ttl: 1000, limit: 20 }], // 20 typing events per 10 seconds
 
     // Session management
     ['joinSession', { name: 'join', ttl: 60000, limit: 10 }], // 10 joins per minute

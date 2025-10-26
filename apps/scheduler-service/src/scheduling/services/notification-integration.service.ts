@@ -15,7 +15,7 @@ export class NotificationIntegrationService {
   ) {
     this.notificationServiceUrl =
       this.configService.get('NOTIFICATION_SERVICE_URL') ||
-      'http://localhost:4003/api/v1';
+      'http://localhost:4006/api/v1';
   }
 
   async sendAppointmentReminder(appointmentData: {

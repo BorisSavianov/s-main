@@ -18,12 +18,14 @@ import { WebSocketService } from './websocket.service';
 import { ConnectionManager } from './connection.manager';
 import { WsAuthGuard } from './guards/ws-auth.guard';
 import { WsThrottleGuard } from './guards/ws-throttle.guard';
-import { SenderType } from '../chat/entities/chat-message.entity';
+import { ChatMessage, SenderType } from '../chat/entities/chat-message.entity';
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 
 // DTOs
 interface JoinSessionDto {
   sessionId: string;
-  userToken?: string;
+  userId?: string;
 }
 
 interface SendMessageDto {
@@ -98,6 +100,8 @@ export class WebSocketGateway
     private readonly websocketService: WebSocketService,
     private readonly connectionManager: ConnectionManager,
     private readonly jwtService: JwtService,
+    @InjectRepository(ChatMessage)
+    private chatMessageRepository: Repository<ChatMessage>,
   ) {}
 
   afterInit(server: Server) {
@@ -109,7 +113,6 @@ export class WebSocketGateway
     try {
       const token = this.extractTokenFromHandshake(client);
       const user = token ? await this.validateToken(token) : null;
-
       await this.connectionManager.addConnection(client, user);
 
       this.logger.log(
@@ -148,13 +151,13 @@ export class WebSocketGateway
     @MessageBody() data: JoinSessionDto,
   ) {
     try {
-      const { sessionId, userToken } = data;
+      const { sessionId, userId } = data;
 
       // Validate session access
       const canJoin = await this.websocketService.validateSessionAccess(
         sessionId,
         client,
-        userToken,
+        userId,
       );
 
       if (!canJoin) {
@@ -384,10 +387,18 @@ export class WebSocketGateway
       // Show AI typing
       this.server.to(sessionId).emit('aiTyping', { sessionId, isTyping: true });
 
+      // Get recent conversation history
+      const recentMessages = await this.chatMessageRepository.find({
+        where: { sessionId },
+        order: { createdAt: 'DESC' },
+        take: 10,
+      });
+
       // Get AI response
       const aiResponse = await this.websocketService.generateAIResponse(
         sessionId,
         userMessage,
+        recentMessages,
       );
 
       // Create AI message

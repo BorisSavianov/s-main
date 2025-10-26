@@ -42,9 +42,68 @@ import {
 import { RedisModule as JwtRefreshRedisModule } from 'apps/auth-service/src/redis/redis.module';
 import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
 import { HealthModule } from './health/health.module';
+import { MessageAttachment } from './chat/entities/message-attachment.entity';
+import { ChatMessage } from './chat/entities/chat-message.entity';
+import { AiContext } from './ai/entities/ai-context.entity';
+import { ChatSession } from './chat/entities/chat-session.entity';
+import { ChatSessionSummary } from './chat/entities/chat-session-summary.entity';
+
+// User-service entities
+import { User } from 'apps/user-service/src/database/entities/user.entity';
+import { CounselorProfile } from 'apps/user-service/src/database/entities/counselor-profile.entity';
+import { UserSession } from 'apps/user-service/src/database/entities/user-session.entity';
+import { OAuthProvider } from 'apps/user-service/src/database/entities/oauth-provider.entity';
+
+// Notification-service entities
+import { Notification } from 'apps/notification-service/src/notifications/entities/notification.entity';
+import { NotificationBatchJob } from 'apps/notification-service/src/notifications/entities/notification-batch-job.entity';
+import { NotificationPreference } from 'apps/notification-service/src/prefrences/entities/notification-prefrence.entity';
+import { NotificationTemplate } from 'apps/notification-service/src/templates/entities/notification-template.entity';
+import { PushSubscription } from 'apps/notification-service/src/notifications/entities/push-subscription.entity';
 
 @Module({
   imports: [
+    // TypeORM (Postgres)
+    TypeOrmModule.forRootAsync({
+      imports: [AppConfigModule],
+      useFactory: async (
+        cfg: AppConfigService,
+      ): Promise<TypeOrmModuleOptions> => {
+        const c = cfg.databaseConfig;
+        return {
+          ...c,
+          logging: c.logging === 'all' ? 'all' : (c.logging as LogLevel[]),
+          synchronize: false,
+          autoLoadEntities: true,
+          entities: [
+            ChatSession,
+            ChatMessage,
+            MessageAttachment,
+            ChatSessionSummary,
+            AiContext,
+            User,
+            CounselorProfile,
+            UserSession,
+            OAuthProvider,
+            Notification,
+            NotificationBatchJob,
+            NotificationPreference,
+            NotificationTemplate,
+            PushSubscription,
+          ],
+          extra: {
+            ...c.extra,
+            max: c.extra?.max ?? 20,
+            min: 0,
+            acquire: 30000,
+            idle: 10000,
+            idleTimeoutMillis: c.extra?.idleTimeoutMillis ?? 30000,
+            connectionTimeoutMillis: c.extra?.connectionTimeoutMillis ?? 30000,
+          },
+        };
+      },
+      inject: [AppConfigService],
+    }),
     // application‐wide config
     AppConfigModule,
     AuthCoreModule,
@@ -66,31 +125,6 @@ import { HealthModule } from './health/health.module';
         enabled: true,
         config: { prefix: 'chat_service_' },
       },
-    }),
-
-    // TypeORM (Postgres)
-    TypeOrmModule.forRootAsync({
-      imports: [AppConfigModule],
-      useFactory: async (
-        cfg: AppConfigService,
-      ): Promise<TypeOrmModuleOptions> => {
-        const c = cfg.databaseConfig;
-        return {
-          ...c,
-          logging: c.logging === 'all' ? 'all' : (c.logging as LogLevel[]),
-          synchronize: false,
-          extra: {
-            ...c.extra,
-            max: c.extra?.max ?? 20,
-            min: 0,
-            acquire: 30000,
-            idle: 10000,
-            idleTimeoutMillis: c.extra?.idleTimeoutMillis ?? 30000,
-            connectionTimeoutMillis: c.extra?.connectionTimeoutMillis ?? 30000,
-          },
-        };
-      },
-      inject: [AppConfigService],
     }),
 
     // Redis
@@ -197,6 +231,4 @@ import { HealthModule } from './health/health.module';
     },
   ],
 })
-export class AppModule {
-  constructor(private readonly config: AppConfigService) {}
-}
+export class AppModule {}

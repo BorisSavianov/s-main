@@ -8,9 +8,10 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 async function bootstrap() {
+  // Create Nest app
   const app = await NestFactory.create(AppModule);
 
-  // Enable validation
+  // Enable global validation
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -29,6 +30,8 @@ async function bootstrap() {
   // Enable CORS
   app.enableCors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   });
 
@@ -37,12 +40,10 @@ async function bootstrap() {
     exclude: [{ path: 'metrics', method: RequestMethod.GET }],
   });
 
-  // Swagger configuration
+  // Swagger setup
   const config = new DocumentBuilder()
     .setTitle('Serenity Space Auth Service')
-    .setDescription(
-      'Authentication service for mental health platform SerenitySpace',
-    )
+    .setDescription('Authentication service for Serenity Space platform')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
@@ -50,8 +51,10 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
-  const port = process.env.PORT_AUTH || 4000;
+  // Start HTTP server
+  const port = parseInt(process.env.PORT_AUTH || '4000', 10);
   await app.listen(port);
+
   console.log(`🚀 Auth service running on port ${port}`);
   console.log(`📚 API Documentation: http://localhost:${port}/docs`);
 }

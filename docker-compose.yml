@@ -304,7 +304,7 @@ services:
   scheduler-service:
     build:
       context: ./
-      dockerfile: Dockerfile-scheduler
+      dockerfile: Dockerfile-schedule
     container_name: serenity_space_scheduler
     environment:
       - NODE_ENV=${NODE_ENV}

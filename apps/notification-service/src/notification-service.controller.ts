@@ -18,7 +18,7 @@ import { JwtAuthGuard } from 'apps/auth-service/src/auth/guards/jwt-auth.guard';
 import { NotificationServiceClient } from './clients/notification-service.client';
 
 @ApiTags('notifications')
-@Controller('api/notifications')
+@Controller('notifications')
 export class NotificationServiceController {
   constructor(private readonly notificationClient: NotificationServiceClient) {}
 

@@ -918,7 +918,7 @@ Summary:`;
             `${this.ollamaBaseUrl}/api/generate`,
             requestData,
             {
-              timeout: 30000,
+              timeout: 120000,
               headers: {
                 'Content-Type': 'application/json',
               },
