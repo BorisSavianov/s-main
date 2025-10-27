@@ -205,6 +205,9 @@ import { HttpModule, HttpService } from '@nestjs/axios';
         },
       },
     ),
+    BullModule.registerQueue({
+      name: 'chat-processing',
+    }),
 
     // HTTP module for AI service communications
     HttpModule.register({

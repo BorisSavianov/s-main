@@ -266,11 +266,6 @@ export class WebSocketGateway
         // tempId: data.tempId,
       });
 
-      // Trigger AI response if needed
-      if (await this.websocketService.shouldTriggerAI(sessionId, message)) {
-        await this.handleAIResponse(sessionId, content);
-      }
-
       this.logger.debug(`Message sent in session ${sessionId}`);
     } catch (error) {
       this.logger.error(`Send message failed: ${error.message}`);
@@ -394,11 +389,19 @@ export class WebSocketGateway
         take: 10,
       });
 
+      const latestMessage = await this.chatMessageRepository.findOne({
+        where: { sessionId },
+        order: { createdAt: 'DESC' },
+        select: ['id'],
+      });
+      const latestMessageId = latestMessage?.id;
+
       // Get AI response
       const aiResponse = await this.websocketService.generateAIResponse(
         sessionId,
         userMessage,
         recentMessages,
+        latestMessageId!,
       );
 
       // Create AI message

@@ -60,6 +60,7 @@ import { NotificationBatchJob } from 'apps/notification-service/src/notification
 import { NotificationPreference } from 'apps/notification-service/src/prefrences/entities/notification-prefrence.entity';
 import { NotificationTemplate } from 'apps/notification-service/src/templates/entities/notification-template.entity';
 import { PushSubscription } from 'apps/notification-service/src/notifications/entities/push-subscription.entity';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
@@ -125,6 +126,17 @@ import { PushSubscription } from 'apps/notification-service/src/notifications/en
         enabled: true,
         config: { prefix: 'chat_service_' },
       },
+    }),
+
+    // Event emitter for internal events
+    EventEmitterModule.forRoot({
+      wildcard: false,
+      delimiter: '.',
+      newListener: false,
+      removeListener: false,
+      maxListeners: 100,
+      verboseMemoryLeak: false,
+      ignoreErrors: false,
     }),
 
     // Redis

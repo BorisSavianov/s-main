@@ -271,6 +271,7 @@ export class WebSocketService {
     sessionId: string,
     userMessage: string,
     recentMessages: ChatMessage[],
+    messageId: string,
   ): Promise<string> {
     try {
       const context = {
@@ -283,6 +284,7 @@ export class WebSocketService {
         'generate-response',
         {
           context,
+          messageId,
         },
         {
           priority: 1, // High priority
@@ -541,6 +543,7 @@ export class WebSocketService {
     sessionId: string,
     userMessage: string,
     recentMessages: ChatMessage[],
+    messageId: string,
     callback?: (response: string) => void,
   ): Promise<void> {
     try {
@@ -548,12 +551,14 @@ export class WebSocketService {
         sessionId: sessionId,
         recentMessages: recentMessages,
         userMessage: userMessage,
+        messageId: recentMessages.at(0)?.id,
       };
 
       const job = await this.aiResponseQueue.add(
         'generate-response',
         {
           context,
+          messageId,
         },
         {
           priority: 1,

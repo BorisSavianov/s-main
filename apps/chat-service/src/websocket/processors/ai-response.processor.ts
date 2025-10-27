@@ -1,6 +1,6 @@
 // apps/chat-service/src/websocket/processors/ai-response.processor.ts
-import { Processor, Process } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Processor, Process, InjectQueue } from '@nestjs/bull';
+import { Job, Queue } from 'bull';
 import { Logger, Injectable, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -29,19 +29,21 @@ export class AIResponseProcessor {
     private chatSessionRepository: Repository<ChatSession>,
     @InjectRepository(ChatMessage)
     private chatMessageRepository: Repository<ChatMessage>,
-
+    @InjectQueue('chat-processing')
+    private chatQueue: Queue,
     private eventEmitter: EventEmitter2,
   ) {}
 
   @Process('generate-response')
   async handleGenerateResponse(job: Job<any>) {
-    const { context } = job.data;
+    const { context, messageId } = job.data;
     const sessionId = context.sessionId;
+
     try {
       this.logger.debug(`Generating AI response for session ${sessionId}`);
 
       // Call AI service (replace with actual AI service integration)
-      const response = await this.generateAIResponse(context);
+      const response = await this.generateAIResponse(context, messageId);
 
       this.logger.debug(`AI response generated for session ${sessionId}`);
 
@@ -54,9 +56,26 @@ export class AIResponseProcessor {
     }
   }
 
-  private async generateAIResponse(context: ChatContext): Promise<string> {
+  private async generateAIResponse(
+    context: ChatContext,
+    messageId: string,
+  ): Promise<string> {
     try {
       const aiResponse = await this.aiService.generateResponse(context);
+
+      // Queue content moderation
+      await this.chatQueue.add(
+        'moderate-content',
+        {
+          messageId: messageId,
+          content: context.userMessage,
+          sessionId: context.sessionId,
+        },
+        {
+          priority: 1, // High priority for safety
+          attempts: 2,
+        },
+      );
 
       return aiResponse.content;
     } catch (error) {

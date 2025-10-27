@@ -249,31 +249,41 @@ export class ChatEventHandlersService {
     severity: string;
   }) {
     try {
-      this.logger.warn(
-        `Content flagged: ${event.messageId} - ${event.flagType} (${event.severity})`,
-      );
-
-      // Update message flag status
       await this.chatMessageRepository.update(event.messageId, {
         isFlagged: true,
         flagReason: event.flagType,
       });
 
-      // For critical flags, queue immediate intervention
-      if (event.severity === 'critical') {
-        await this.chatQueue.add(
-          'immediate-intervention',
-          {
-            sessionId: event.sessionId,
-            messageId: event.messageId,
-            flagType: event.flagType,
-          },
-          {
-            priority: 20, // Highest priority
-            attempts: 1,
-          },
-        );
-      }
+      this.logger.warn(1);
+
+      // Emit event (no await)
+      this.eventEmitter.emit('user.crisis.detected', {
+        sessionId: event.sessionId,
+        messageId: event.messageId,
+        crisisType: 'self_harm_indicators',
+        confidence: 0.8,
+      });
+
+      this.logger.warn(2);
+
+      await this.chatQueue.add(
+        'immediate-intervention',
+        {
+          sessionId: event.sessionId,
+          messageId: event.messageId,
+          flagType: event.flagType,
+        },
+        {
+          priority: 20,
+          attempts: 1,
+        },
+      );
+
+      this.logger.warn(3);
+
+      this.logger.warn(
+        `Content flagged: ${event.messageId} - ${event.flagType} (${event.severity})`,
+      );
     } catch (error) {
       this.logger.error(
         `Failed to handle content flagged event: ${error.message}`,
