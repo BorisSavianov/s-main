@@ -1,4 +1,4 @@
-// apps/chat-service/src/chat/services/chat-event-handlers.service.ts
+// apps/chat-service/src/chat/services/chat-event-handlers.listener.ts
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectQueue } from '@nestjs/bull';
@@ -61,6 +61,12 @@ export class ChatEventHandlersService {
     private eventEmitter: EventEmitter2,
   ) {
     this.logger.log('ChatEventHandlersService initialized');
+    // Log all registered event listeners
+    this.logger.log('Registered events:', this.eventEmitter.eventNames());
+    const listenerCount = this.eventEmitter.listenerCount('message.sent');
+    this.logger.log(
+      `Registered ${listenerCount} listeners for 'message.sent' event`,
+    );
   }
 
   @OnEvent('session.created')
@@ -141,7 +147,7 @@ export class ChatEventHandlersService {
   @OnEvent('message.sent')
   async handleMessageSent(event: MessageSentEvent) {
     try {
-      this.logger.debug(`Message sent: ${event.messageId}`);
+      this.logger.debug(`Message sent: ${event.messageId}, moderating content`);
 
       // Queue content moderation
       await this.chatQueue.add(

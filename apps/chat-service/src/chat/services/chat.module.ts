@@ -6,7 +6,7 @@ import { HttpModule } from '@nestjs/axios';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, EventEmitterModule } from '@nestjs/event-emitter';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
@@ -40,13 +40,14 @@ import { RefreshTokenStrategy } from '../../../../auth-service/src/auth/strategi
 import { RedisModule } from 'apps/auth-service/src/redis/redis.module';
 import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
 import { NotificationModule } from 'apps/notification-service/src/notifications/services/notification.module';
-import { ChatEventHandlersService } from './chat-event-handlers.service';
+import { ChatEventHandlersService } from './chat-event-handlers.listener';
 
 @Module({
   imports: [
     AuthCoreModule,
     RedisModule,
     NotificationModule,
+
     TypeOrmModule.forFeature([
       ChatSession,
       ChatMessage,
@@ -173,7 +174,6 @@ import { ChatEventHandlersService } from './chat-event-handlers.service';
     MessageService,
     ChatProcessor,
     AIService,
-    EventEmitter2,
     ChatEventHandlersService,
 
     // Authentication strategies
@@ -192,7 +192,8 @@ import { ChatEventHandlersService } from './chat-event-handlers.service';
     MessageService,
     ChatProcessor,
     AIService,
-    EventEmitter2,
+
+    ChatEventHandlersService,
 
     // Export guards for use in other modules
     JwtAuthGuard,

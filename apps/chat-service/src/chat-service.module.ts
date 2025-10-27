@@ -64,6 +64,8 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
+    // Event emitter for internal events
+    EventEmitterModule.forRoot(),
     // TypeORM (Postgres)
     TypeOrmModule.forRootAsync({
       imports: [AppConfigModule],
@@ -126,17 +128,6 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
         enabled: true,
         config: { prefix: 'chat_service_' },
       },
-    }),
-
-    // Event emitter for internal events
-    EventEmitterModule.forRoot({
-      wildcard: false,
-      delimiter: '.',
-      newListener: false,
-      removeListener: false,
-      maxListeners: 100,
-      verboseMemoryLeak: false,
-      ignoreErrors: false,
     }),
 
     // Redis
