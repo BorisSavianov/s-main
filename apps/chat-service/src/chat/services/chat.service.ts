@@ -42,18 +42,7 @@ export class ChatService {
   async createSession(
     createSessionDto: CreateSessionDto,
   ): Promise<ChatSession> {
-    const sessionToken =
-      createSessionDto.sessionToken || this.generateSessionToken();
-
-    // Check if session token already exists
-    const existingSession = await this.chatSessionRepository.findOne({
-      where: { sessionToken },
-    });
-
-    if (existingSession) {
-      throw new BadRequestException('Session token already exists');
-    }
-
+    const sessionToken = this.generateSessionToken();
     const isAnonymous = createSessionDto.sessionType === SessionType.ANONYMOUS;
 
     const session = this.chatSessionRepository.create({
@@ -63,11 +52,15 @@ export class ChatService {
       isAnonymous,
       isActive: true,
       startedAt: new Date(),
+      sessionMetadata: {
+        setupComplete: true,
+        setupAt: new Date().toISOString(),
+        userType: isAnonymous ? 'anonymous' : 'registered',
+      },
     });
 
     const savedSession = await this.chatSessionRepository.save(session);
 
-    // Emit session created event
     this.eventEmitter.emit('session.created', {
       sessionId: savedSession.id,
       userId: savedSession.userId,
@@ -80,19 +73,20 @@ export class ChatService {
   /**
    * Get session by ID or token
    */
-  async getSession(sessionId: string): Promise<ChatSession> {
+  async getSession(sessionIdOrToken: string): Promise<ChatSession> {
     let session: ChatSession | null;
 
-    // Try to find by ID first, then by token
+    // Try by ID first
     session = await this.chatSessionRepository.findOne({
-      where: { id: sessionId },
-      relations: ['messages', 'summaries'],
+      where: { id: sessionIdOrToken },
+      relations: ['messages'],
     });
 
+    // Try by token if not found
     if (!session) {
       session = await this.chatSessionRepository.findOne({
-        where: { sessionToken: sessionId },
-        relations: ['messages', 'summaries'],
+        where: { sessionToken: sessionIdOrToken },
+        relations: ['messages'],
       });
     }
 
@@ -101,6 +95,26 @@ export class ChatService {
     }
 
     return session;
+  }
+
+  async convertAnonymousSession(
+    sessionId: string,
+    userId: string,
+  ): Promise<ChatSession> {
+    const session = await this.getSession(sessionId);
+
+    if (!session.isAnonymous) {
+      throw new BadRequestException('Session is not anonymous');
+    }
+
+    session.userId = userId;
+    session.isAnonymous = false;
+    session.sessionMetadata = {
+      ...session.sessionMetadata,
+      userType: 'registered',
+    };
+
+    return await this.chatSessionRepository.save(session);
   }
 
   /**
@@ -113,15 +127,6 @@ export class ChatService {
       throw new BadRequestException('Cannot send message to inactive session');
     }
 
-    // Validate sender for user messages
-    if (
-      sendMessageDto.senderType === SenderType.USER &&
-      !sendMessageDto.senderId
-    ) {
-      throw new BadRequestException('Sender ID required for user messages');
-    }
-
-    // Create and save the message
     const message = this.chatMessageRepository.create({
       sessionId: session.id,
       senderId: sendMessageDto.senderId || null,
@@ -132,15 +137,6 @@ export class ChatService {
 
     const savedMessage = await this.chatMessageRepository.save(message);
 
-    // Handle attachments if provided
-    if (sendMessageDto.attachmentIds?.length) {
-      await this.attachFilesToMessage(
-        savedMessage.id,
-        sendMessageDto.attachmentIds,
-      );
-    }
-
-    // Emit message sent event for async processing
     this.eventEmitter.emit('message.sent', {
       messageId: savedMessage.id,
       sessionId: session.id,
@@ -148,7 +144,7 @@ export class ChatService {
       content: savedMessage.content,
     });
 
-    // Generate AI response if this was a user message
+    // Generate AI response if user message
     if (sendMessageDto.senderType === SenderType.USER) {
       this.generateAIResponse(session.id, savedMessage).catch(console.error);
     }
@@ -213,7 +209,7 @@ export class ChatService {
    * Get messages with filtering and pagination
    */
   async getMessages(queryDto: QueryMessagesDto) {
-    const where: FindOptionsWhere<ChatMessage> = {};
+    const where: any = {};
 
     if (queryDto.sessionId) where.sessionId = queryDto.sessionId;
     if (queryDto.senderId) where.senderId = queryDto.senderId;
@@ -225,7 +221,6 @@ export class ChatService {
       .leftJoinAndSelect('message.attachments', 'attachments')
       .where(where);
 
-    // Date filtering
     if (queryDto.fromDate) {
       queryBuilder.andWhere('message.createdAt >= :fromDate', {
         fromDate: new Date(queryDto.fromDate),
@@ -237,7 +232,6 @@ export class ChatService {
       });
     }
 
-    // Pagination
     const skip = (queryDto.page! - 1) * queryDto.limit!;
     queryBuilder
       .orderBy('message.createdAt', 'ASC')
@@ -321,7 +315,7 @@ export class ChatService {
     offset = 0,
   ): Promise<ChatSession[]> {
     return this.chatSessionRepository.find({
-      where: { userId },
+      where: { userId, isActive: true },
       order: { createdAt: 'DESC' },
       take: limit,
       skip: offset,

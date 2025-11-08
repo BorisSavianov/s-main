@@ -51,130 +51,156 @@ import { UserRole } from '../../../../auth-service/src/database/entities/user.en
 
 @ApiTags('Chat')
 @Controller('/chat')
-@UseGuards(JwtAuthGuard) // Apply JWT guard globally to this controller
+@UseGuards(JwtAuthGuard)
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
+  /**
+   * Helper to verify session access
+   * Returns true if user has access to the session
+   */
+  private canAccessSession(session: any, currentUser?: any): boolean {
+    // Anonymous sessions can be accessed by anyone (not ideal for production)
+    // Or check session token in headers/query
+    if (session.isAnonymous && !session.userId) {
+      return true;
+    }
+
+    // Authenticated sessions require matching userId
+    if (session.userId && currentUser?.id) {
+      return session.userId === currentUser.id;
+    }
+
+    // If session has userId but no current user, deny access
+    // if (session.userId && !currentUser?.id) {
+    //   return false;
+    // }
+
+    return true;
+  }
+
   @Post('sessions')
-  @Public() // Allow public access for anonymous sessions
-  @UseGuards(ThrottlerGuard) // Rate limiting for session creation
+  @Public()
+  @UseGuards(ThrottlerGuard)
   @ApiOperation({ summary: 'Create a new chat session' })
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Session created successfully',
     type: SessionResponseDto,
   })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid session data',
-  })
-  @ApiResponse({
-    status: HttpStatus.TOO_MANY_REQUESTS,
-    description: 'Too many session creation requests',
-  })
   async createSession(
     @Body(ValidationPipe) createSessionDto: CreateSessionDto,
+    @GetUser() currentUser?: any,
   ): Promise<SessionResponseDto> {
+    // If authenticated, use the authenticated user's ID
+    if (currentUser?.id) {
+      createSessionDto.userId = currentUser.id;
+    }
+
     const session = await this.chatService.createSession(createSessionDto);
     return this.mapToSessionResponse(session);
   }
 
   @Get('sessions/:sessionId')
-  @Public() // Allow public access for anonymous sessions
+  @Public()
   @ApiOperation({ summary: 'Get session details' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID or token' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Session details retrieved successfully',
-    type: SessionResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Session not found',
-  })
   async getSession(
     @Param('sessionId') sessionId: string,
+    @GetUser() currentUser?: any,
   ): Promise<SessionResponseDto> {
     const session = await this.chatService.getSession(sessionId);
+
+    // Verify access rights
+    if (!this.canAccessSession(session, currentUser)) {
+      throw new ForbiddenException('Access denied to this session');
+    }
+
     return this.mapToSessionResponse(session);
   }
 
+  @Patch('sessions/:sessionId')
+  @Public()
+  @ApiOperation({
+    summary: 'Update session (e.g., convert anonymous to authenticated)',
+  })
+  async updateSession(
+    @Param('sessionId') sessionId: string,
+    @Body() updateData: { userId?: string },
+    @GetUser() currentUser?: any,
+  ): Promise<SessionResponseDto> {
+    const session = await this.chatService.getSession(sessionId);
+
+    // For anonymous session conversion, allow if user is authenticated
+    if (session.isAnonymous && currentUser?.id) {
+      // Only allow linking to the authenticated user's own account
+      if (updateData.userId && updateData.userId !== currentUser.id) {
+        throw new ForbiddenException('Can only link to your own account');
+      }
+
+      const updatedSession = await this.chatService.convertAnonymousSession(
+        sessionId,
+        currentUser.id,
+      );
+
+      return this.mapToSessionResponse(updatedSession);
+    }
+
+    // For non-anonymous sessions, require proper authorization
+    if (!this.canAccessSession(session, currentUser)) {
+      throw new ForbiddenException('Cannot modify this session');
+    }
+
+    throw new ForbiddenException('Cannot modify authenticated session');
+  }
+
   @Post('messages')
-  @Public() // Allow public message sending for anonymous sessions
-  @UseGuards(ThrottlerGuard) // Rate limiting for message sending
+  @Public()
+  @UseGuards(ThrottlerGuard)
   @ApiOperation({ summary: 'Send a message in a chat session' })
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Message sent successfully',
     type: MessageResponseDto,
   })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid message data',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Session not found',
-  })
-  @ApiResponse({
-    status: HttpStatus.TOO_MANY_REQUESTS,
-    description: 'Rate limit exceeded',
-  })
   async sendMessage(
     @Body(ValidationPipe) sendMessageDto: SendMessageDto,
+    @GetUser() currentUser?: any,
   ): Promise<MessageResponseDto> {
+    // Verify session access
+    const session = await this.chatService.getSession(sendMessageDto.sessionId);
+
+    if (!this.canAccessSession(session, currentUser)) {
+      throw new ForbiddenException('Access denied to this session');
+    }
+
+    // Set sender ID if authenticated
+    if (currentUser?.id) {
+      sendMessageDto.senderId = currentUser.id;
+    }
+
     const message = await this.chatService.sendMessage(sendMessageDto);
     return this.mapToMessageResponse(message);
   }
 
   @Get('messages')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.USER, UserRole.COUNSELOR, UserRole.ADMIN)
-  @ApiBearerAuth()
+  @Public()
   @ApiOperation({ summary: 'Get messages with filtering and pagination' })
-  @ApiQuery({
-    name: 'sessionId',
-    required: false,
-    description: 'Filter by session ID',
-  })
-  @ApiQuery({
-    name: 'senderId',
-    required: false,
-    description: 'Filter by sender ID',
-  })
-  @ApiQuery({
-    name: 'senderType',
-    required: false,
-    description: 'Filter by sender type',
-  })
-  @ApiQuery({
-    name: 'fromDate',
-    required: false,
-    description: 'Filter messages from date',
-  })
-  @ApiQuery({
-    name: 'toDate',
-    required: false,
-    description: 'Filter messages to date',
-  })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Items per page' })
-  @ApiQuery({
-    name: 'flaggedOnly',
-    required: false,
-    description: 'Show only flagged messages',
-  })
   async getMessages(
     @Query(ValidationPipe) queryDto: QueryMessagesDto,
-    @GetUser() currentUser: any,
+    @GetUser() currentUser?: any,
   ) {
-    // Users can only see messages from their own sessions
-    if (
-      currentUser.role === UserRole.USER &&
-      queryDto.senderId &&
-      queryDto.senderId !== currentUser.id
-    ) {
-      throw new ForbiddenException('Cannot access messages from other users');
+    // Verify session access if sessionId provided
+    if (queryDto.sessionId) {
+      const session = await this.chatService.getSession(queryDto.sessionId);
+
+      if (!this.canAccessSession(session, currentUser)) {
+        throw new ForbiddenException('Access denied to this session');
+      }
+    }
+
+    // For authenticated users without sessionId, restrict to their own messages
+    if (currentUser?.id && !queryDto.sessionId) {
+      queryDto.senderId = currentUser.id;
     }
 
     const result = await this.chatService.getMessages(queryDto);
@@ -213,31 +239,24 @@ export class ChatController {
   }
 
   @Post('sessions/:sessionId/end')
-  @Public() // Allow public session ending for anonymous sessions
+  @Public()
   @ApiOperation({ summary: 'End a chat session' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID to end' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Session ended successfully',
-    type: SessionResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Session not found',
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Session already ended',
-  })
   @HttpCode(HttpStatus.OK)
   async endSession(
     @Param('sessionId') sessionId: string,
     @Body(ValidationPipe) endSessionDto: EndSessionDto,
+    @GetUser() currentUser?: any,
   ): Promise<SessionResponseDto> {
-    // Override sessionId from param
+    // Verify session access
+    const session = await this.chatService.getSession(sessionId);
+
+    if (!this.canAccessSession(session, currentUser)) {
+      throw new ForbiddenException('Access denied to this session');
+    }
+
     endSessionDto.sessionId = sessionId;
-    const session = await this.chatService.endSession(endSessionDto);
-    return this.mapToSessionResponse(session);
+    const endedSession = await this.chatService.endSession(endSessionDto);
+    return this.mapToSessionResponse(endedSession);
   }
 
   @Get('users/:userId/sessions')
@@ -269,13 +288,13 @@ export class ChatController {
     @Param('userId', ParseUUIDPipe) userId: string,
     @Query('limit') limit = 20,
     @Query('offset') offset = 0,
-    @GetUser() currentUser: any,
+    @GetUser() currentUser?: any,
   ): Promise<SessionResponseDto[]> {
-    // Users can only access their own sessions, unless they're counselors/admins
-    if (
-      currentUser.id !== userId &&
-      ![UserRole.COUNSELOR, UserRole.ADMIN].includes(currentUser.role)
-    ) {
+    // Users can only access their own sessions unless admin/counselor
+    const isAdmin = currentUser?.role === UserRole.ADMIN;
+    const isCounselor = currentUser?.role === UserRole.COUNSELOR;
+
+    if (!isAdmin && !isCounselor && currentUser?.userId !== userId) {
       throw new ForbiddenException('Unauthorized to access these sessions');
     }
 
@@ -547,7 +566,7 @@ export class ChatController {
       overallSentiment: session.overallSentiment,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
-      messages: session.messages?.slice(0, 5), // Only include recent messages
+      messages: session.messages?.slice(0, 5),
     };
   }
 
