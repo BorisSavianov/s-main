@@ -1,22 +1,23 @@
-// src/database/entities/user.entity.ts
+// apps/user-service/src/database/entities/user.entity.ts
 import {
   Entity,
-  Column,
   PrimaryGeneratedColumn,
+  Column,
   CreateDateColumn,
   UpdateDateColumn,
-  OneToMany,
   OneToOne,
+  OneToMany,
 } from 'typeorm';
+
+import { CounselorProfile } from './counselor-profile.entity';
 import { UserSession } from './user-session.entity';
 import { OAuthProvider } from './oauth-provider.entity';
-import { CounselorProfile } from './counselor-profile.entity';
+import { UserPreferences } from './user-preferences.entity';
 
 export enum UserRole {
-  ADMIN = 'admin',
-  COUNSELOR = 'counselor',
   USER = 'user',
-  GUEST = 'guest',
+  COUNSELOR = 'counselor',
+  ADMIN = 'admin',
 }
 
 @Entity('users')
@@ -64,11 +65,7 @@ export class User {
   @Column({ name: 'is_verified', default: false })
   isVerified: boolean;
 
-  @Column({
-    name: 'last_login',
-    type: 'timestamp with time zone',
-    nullable: true,
-  })
+  @Column({ name: 'last_login', nullable: true })
   lastLogin?: Date;
 
   @CreateDateColumn({ name: 'created_at' })
@@ -77,12 +74,12 @@ export class User {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @Column({
-    name: 'deleted_at',
-    type: 'timestamp with time zone',
-    nullable: true,
-  })
+  @Column({ name: 'deleted_at', nullable: true })
   deletedAt?: Date;
+
+  // Relations
+  @OneToOne(() => CounselorProfile, (profile) => profile.user)
+  counselorProfile?: CounselorProfile;
 
   @OneToMany(() => UserSession, (session) => session.user)
   sessions: UserSession[];
@@ -90,6 +87,6 @@ export class User {
   @OneToMany(() => OAuthProvider, (provider) => provider.user)
   oauthProviders: OAuthProvider[];
 
-  @OneToOne(() => CounselorProfile, (profile) => profile.user)
-  counselorProfile?: CounselorProfile;
+  @OneToOne(() => UserPreferences, (preferences) => preferences.user)
+  preferences?: UserPreferences;
 }

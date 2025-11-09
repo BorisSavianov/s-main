@@ -41,6 +41,7 @@ import { NotificationTemplate } from 'apps/notification-service/src/templates/en
 import { NotificationPreference } from 'apps/notification-service/src/prefrences/entities/notification-prefrence.entity';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { join } from 'path';
+import { UserPreferences } from '../database/entities/user-preferences.entity';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { join } from 'path';
       PushSubscription,
       NotificationTemplate,
       NotificationPreference,
+      UserPreferences,
     ]),
     ThrottlerModule.forRoot([
       {

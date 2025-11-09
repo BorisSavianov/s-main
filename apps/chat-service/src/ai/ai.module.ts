@@ -19,6 +19,8 @@ import { JwtAuthGuard } from '../../../auth-service/src/auth/guards/jwt-auth.gua
 import { RolesGuard } from '../../../auth-service/src/auth/guards/roles.guard';
 import { JwtStrategy } from '../../../auth-service/src/auth/strategies/jwt.strategy';
 import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
+import { EnhancedAIService } from './web-ai.service';
+import { WebSearchModule } from '../web-search/web-search.module';
 
 @Module({
   imports: [
@@ -44,6 +46,9 @@ import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
         },
       },
     }),
+    BullModule.registerQueue({
+      name: 'chat-processing',
+    }),
 
     // JWT module for authentication
     JwtModule.registerAsync({
@@ -65,10 +70,12 @@ import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
     PassportModule.register({ defaultStrategy: 'jwt' }),
 
     ConfigModule,
+    WebSearchModule,
   ],
   controllers: [AIController],
   providers: [
     AIService,
+    EnhancedAIService,
     AIProcessor,
 
     // Authentication strategy
@@ -78,6 +85,6 @@ import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
     JwtAuthGuard,
     RolesGuard,
   ],
-  exports: [AIService, JwtAuthGuard, RolesGuard],
+  exports: [AIService, JwtAuthGuard, RolesGuard, EnhancedAIService],
 })
 export class AiModule {}

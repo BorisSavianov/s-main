@@ -12,6 +12,7 @@ import {
 import { CounselorProfile } from './counselor-profile.entity';
 import { UserSession } from './user-session.entity';
 import { OAuthProvider } from './oauth-provider.entity';
+import { UserPreferences } from './user-preferences.entity';
 
 export enum UserRole {
   USER = 'user',
@@ -85,4 +86,7 @@ export class User {
 
   @OneToMany(() => OAuthProvider, (provider) => provider.user)
   oauthProviders: OAuthProvider[];
+
+  @OneToOne(() => UserPreferences, (preferences) => preferences.user)
+  preferences?: UserPreferences;
 }

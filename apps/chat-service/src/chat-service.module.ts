@@ -61,6 +61,8 @@ import { NotificationPreference } from 'apps/notification-service/src/prefrences
 import { NotificationTemplate } from 'apps/notification-service/src/templates/entities/notification-template.entity';
 import { PushSubscription } from 'apps/notification-service/src/notifications/entities/push-subscription.entity';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { WebSearchModule } from './web-search/web-search.module';
+import { UserPreferences } from 'apps/user-service/src/database/entities/user-preferences.entity';
 
 @Module({
   imports: [
@@ -93,6 +95,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
             NotificationPreference,
             NotificationTemplate,
             PushSubscription,
+            UserPreferences,
           ],
           extra: {
             ...c.extra,
@@ -111,7 +114,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     AppConfigModule,
     AuthCoreModule,
     JwtRefreshRedisModule,
-
+    WebSearchModule,
     // environment variables + validation
     ConfigModule.forRoot({
       isGlobal: true,

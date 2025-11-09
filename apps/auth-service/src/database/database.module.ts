@@ -11,6 +11,7 @@ import { Notification } from 'apps/notification-service/src/notifications/entiti
 import { PushSubscription } from 'apps/notification-service/src/notifications/entities/push-subscription.entity';
 import { NotificationTemplate } from 'apps/notification-service/src/templates/entities/notification-template.entity';
 import { NotificationPreference } from 'apps/notification-service/src/prefrences/entities/notification-prefrence.entity';
+import { UserPreferences } from './entities/user-preferences.entity';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { NotificationPreference } from 'apps/notification-service/src/prefrences
           PushSubscription,
           NotificationTemplate,
           NotificationPreference,
+          UserPreferences,
         ],
         synchronize: false, // Set to false in production
         logging: configService.get<string>('NODE_ENV') === 'development',

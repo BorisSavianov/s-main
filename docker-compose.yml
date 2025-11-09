@@ -72,6 +72,7 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV}
       - PORT=${PORT_AUTH}
+      - WEB_SEARCH_ENABLED=${WEB_SEARCH_ENABLED}
       - DATABASE_URL=${DATABASE_URL}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
@@ -276,6 +277,13 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL}
       - ELASTICSEARCH_URL=${ELASTICSEARCH_URL}
+      - SEARXNG_URL=${SEARXNG_URL}
+      - SEARXNG_SECRET=${SEARXNG_SECRET}
+      - WEB_SEARCH_ENABLED=${WEB_SEARCH_ENABLED}
+      - WEB_SEARCH_MAX_RESULTS=${WEB_SEARCH_MAX_RESULTS}
+      - WEB_SEARCH_CACHE_ENABLED=${WEB_SEARCH_CACHE_ENABLED}
+      - WEB_SEARCH_CACHE_TTL=${WEB_SEARCH_CACHE_TTL}
+      - WEB_SEARCH_TIMEOUT=${WEB_SEARCH_TIMEOUT}
 
     ports:
       - '4002:4002'
@@ -288,8 +296,12 @@ services:
         condition: service_healthy
       auth-service:
         condition: service_started
+      user-service:
+        condition: service_started
       ollama:
         condition: service_started
+      whoogle-search:
+        condition: service_healthy
 
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4002/api/v1/health']
@@ -450,30 +462,45 @@ services:
     networks:
       - serenity_space_network
 
-  # Frontend Application
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: serenity_space_frontend
-    environment:
-      - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
-      - NEXTAUTH_URL=http://localhost:3000
-      - NEXTAUTH_SECRET=your-nextauth-secret-change-in-production
-      - GOOGLE_CLIENT_ID=your-google-client-id
-      - GOOGLE_CLIENT_SECRET=your-google-client-secret
+  # searxng web search
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    container_name: serenity_space_searxng
+    volumes:
+      - ./infrastructure/searxng:/etc/searxng:rw
     ports:
-      - '3000:3000'
-    depends_on:
-      - nginx
+      - '8080:8080'
+    environment:
+      - SEARXNG_BASE_URL=${SEARXNG_URL}
+      - SEARXNG_SECRET=${SEARXNG_SECRET}
+      - SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/v1/health']
+      test: ['CMD', 'wget', '--spider', '-q', 'http://searxng:8080/']
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
     restart: unless-stopped
+    networks:
+      - serenity_space_network
+
+  whoogle-search:
+    image: ${WHOOGLE_IMAGE:-benbusby/whoogle-search}
+    container_name: whoogle-search
+    restart: unless-stopped
+    pids_limit: 50
+    mem_limit: 256mb
+    memswap_limit: 256mb
+    # user debian-tor from tor package
+    user: whoogle
+    security_opt:
+      - no-new-privileges
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /config/:size=10M,uid=927,gid=927,mode=1700
+      - /var/lib/tor/:size=15M,uid=927,gid=927,mode=1700
+      - /run/tor/:size=1M,uid=927,gid=927,mode=1700
     networks:
       - serenity_space_network
 

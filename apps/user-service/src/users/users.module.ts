@@ -8,10 +8,11 @@ import { User } from '../database/entities/user.entity';
 import { UserSession } from '../database/entities/user-session.entity';
 import { RedisModule } from '../redis/redis.module';
 import { AuthModule } from '../auth/auth.module';
+import { UserPreferences } from '../database/entities/user-preferences.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserSession]),
+    TypeOrmModule.forFeature([User, UserSession, UserPreferences]),
     RedisModule,
     AuthModule,
   ],

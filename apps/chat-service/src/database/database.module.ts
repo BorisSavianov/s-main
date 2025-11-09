@@ -24,6 +24,7 @@ import { NotificationBatchJob } from 'apps/notification-service/src/notification
 import { NotificationPreference } from 'apps/notification-service/src/prefrences/entities/notification-prefrence.entity';
 import { NotificationTemplate } from 'apps/notification-service/src/templates/entities/notification-template.entity';
 import { PushSubscription } from 'apps/notification-service/src/notifications/entities/push-subscription.entity';
+import { UserPreferences } from 'apps/user-service/src/database/entities/user-preferences.entity';
 
 const ENTITIES = [
   ChatMessage,
@@ -40,6 +41,7 @@ const ENTITIES = [
   NotificationTemplate,
   PushSubscription,
   NotificationBatchJob,
+  UserPreferences,
 ];
 
 @Module({

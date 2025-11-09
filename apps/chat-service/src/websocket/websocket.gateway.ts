@@ -21,6 +21,8 @@ import { WsThrottleGuard } from './guards/ws-throttle.guard';
 import { ChatMessage, SenderType } from '../chat/entities/chat-message.entity';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EnhancedAIService } from '../ai/web-ai.service';
+import { PreferencesService } from 'apps/user-service/src/preferences/preferences.service';
 
 // DTOs
 interface JoinSessionDto {
@@ -100,6 +102,8 @@ export class WebSocketGateway
     private readonly websocketService: WebSocketService,
     private readonly connectionManager: ConnectionManager,
     private readonly jwtService: JwtService,
+    private readonly webAiService: EnhancedAIService,
+    private readonly preferencesService: PreferencesService,
     @InjectRepository(ChatMessage)
     private chatMessageRepository: Repository<ChatMessage>,
   ) {}
@@ -340,16 +344,16 @@ export class WebSocketGateway
   @UseGuards(WsAuthGuard, WsThrottleGuard)
   async handleRequestAI(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { sessionId: string; message: string },
+    @MessageBody() data: { sessionId: string; message: string; userId: string },
   ) {
     try {
-      const { sessionId, message } = data;
+      const { sessionId, message, userId } = data;
 
       if (!(await this.connectionManager.isInSession(client.id, sessionId))) {
         throw new WsException('Not a member of this session');
       }
 
-      await this.handleAIResponse(sessionId, message);
+      await this.handleAIResponse(sessionId, message, userId!);
     } catch (error) {
       this.logger.error(`AI request failed: ${error.message}`);
       client.emit('error', {
@@ -377,7 +381,11 @@ export class WebSocketGateway
     }
   }
 
-  private async handleAIResponse(sessionId: string, userMessage: string) {
+  private async handleAIResponse(
+    sessionId: string,
+    userMessage: string,
+    userId: string,
+  ) {
     try {
       // Show AI typing
       this.server.to(sessionId).emit('aiTyping', { sessionId, isTyping: true });
@@ -396,11 +404,29 @@ export class WebSocketGateway
       });
       const latestMessageId = latestMessage?.id;
 
-      // Get AI response
-      const aiResponse = await this.websocketService.generateAIResponse(
+      // // Get AI response
+      // const aiResponse = await this.websocketService.generateAIResponse(
+      //   sessionId,
+      //   userMessage,
+      //   recentMessages,
+      //   latestMessageId!,
+      // );
+
+      const webSearchEnabled =
+        await this.preferencesService.isWebSearchEnabled(userId);
+
+      this.logger.debug('webSearch: ' + webSearchEnabled);
+
+      const context = {
         sessionId,
         userMessage,
         recentMessages,
+        webSearchEnabled,
+        userId: userId,
+      };
+
+      const aiResponse = this.webAiService.generateResponseWithSearch(
+        context,
         latestMessageId!,
       );
 
@@ -409,7 +435,7 @@ export class WebSocketGateway
         sessionId,
         senderId: undefined,
         senderType: SenderType.AI,
-        content: aiResponse,
+        content: (await aiResponse).content,
         contentType: 'text',
       });
 

@@ -20,6 +20,8 @@ import {
   PrometheusController,
   PrometheusModule,
 } from '@willsoto/nestjs-prometheus';
+import { PreferencesModule } from './preferences/preferences.module';
+import { UserPreferences } from './database/entities/user-preferences.entity';
 
 @Module({
   imports: [
@@ -66,7 +68,13 @@ import {
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         url: configService.get<string>('DATABASE_URL'),
-        entities: [User, CounselorProfile, UserSession, OAuthProvider],
+        entities: [
+          User,
+          CounselorProfile,
+          UserSession,
+          OAuthProvider,
+          UserPreferences,
+        ],
         synchronize: false, // Use migrations in production
         logging: configService.get<string>('NODE_ENV') === 'development',
         ssl:
@@ -86,6 +94,7 @@ import {
     AuthModule,
     UsersModule,
     CounselorsModule,
+    PreferencesModule,
   ],
   controllers: [PrometheusController],
   providers: [],

@@ -38,6 +38,10 @@ import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
 import { AIService } from '../ai/ai.service';
 import { AiModule } from '../ai/ai.module';
 import { HttpModule, HttpService } from '@nestjs/axios';
+import { EnhancedAIService } from '../ai/web-ai.service';
+import { WebSearchModule } from '../web-search/web-search.module';
+import { PreferencesService } from 'apps/user-service/src/preferences/preferences.service';
+import { PreferencesModule } from 'apps/user-service/src/preferences/preferences.module';
 
 @Module({
   imports: [
@@ -232,13 +236,21 @@ import { HttpModule, HttpService } from '@nestjs/axios';
       },
     ]),
 
+    BullModule.registerQueue({
+      name: 'chat-processing',
+    }),
+
+    WebSearchModule,
     ConfigModule,
+    PreferencesModule,
   ],
   providers: [
     WebSocketGateway,
     WebSocketService,
     ConnectionManager,
     AIService,
+    EnhancedAIService,
+    // PreferencesService,
 
     // Queue Processors
     MessageProcessingProcessor,
