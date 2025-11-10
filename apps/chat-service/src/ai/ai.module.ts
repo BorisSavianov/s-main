@@ -21,6 +21,9 @@ import { JwtStrategy } from '../../../auth-service/src/auth/strategies/jwt.strat
 import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
 import { EnhancedAIService } from './web-ai.service';
 import { WebSearchModule } from '../web-search/web-search.module';
+import { WebScraperService } from '../web-search/web-scraper.service';
+import { ScraperAIIntegrationService } from '../web-search/scraper-ai-integration.service';
+import { WebScraperController } from '../web-search/web-scraper.controller';
 
 @Module({
   imports: [
@@ -72,11 +75,13 @@ import { WebSearchModule } from '../web-search/web-search.module';
     ConfigModule,
     WebSearchModule,
   ],
-  controllers: [AIController],
+  controllers: [AIController, WebScraperController],
   providers: [
     AIService,
     EnhancedAIService,
     AIProcessor,
+    WebScraperService,
+    ScraperAIIntegrationService,
 
     // Authentication strategy
     JwtStrategy,
@@ -85,6 +90,12 @@ import { WebSearchModule } from '../web-search/web-search.module';
     JwtAuthGuard,
     RolesGuard,
   ],
-  exports: [AIService, JwtAuthGuard, RolesGuard, EnhancedAIService],
+  exports: [
+    AIService,
+    JwtAuthGuard,
+    RolesGuard,
+    EnhancedAIService,
+    ScraperAIIntegrationService,
+  ],
 })
 export class AiModule {}

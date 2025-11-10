@@ -277,13 +277,17 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL}
       - ELASTICSEARCH_URL=${ELASTICSEARCH_URL}
-      - SEARXNG_URL=${SEARXNG_URL}
+      - WHOOGLE_URL=${WHOOGLE_URL}
       - SEARXNG_SECRET=${SEARXNG_SECRET}
       - WEB_SEARCH_ENABLED=${WEB_SEARCH_ENABLED}
       - WEB_SEARCH_MAX_RESULTS=${WEB_SEARCH_MAX_RESULTS}
       - WEB_SEARCH_CACHE_ENABLED=${WEB_SEARCH_CACHE_ENABLED}
       - WEB_SEARCH_CACHE_TTL=${WEB_SEARCH_CACHE_TTL}
       - WEB_SEARCH_TIMEOUT=${WEB_SEARCH_TIMEOUT}
+      - WEB_SCRAPER_MAX_RESULTS=${WEB_SCRAPER_MAX_RESULTS}
+      - WEB_SCRAPER_CACHE_ENABLED=${WEB_SCRAPER_CACHE_ENABLED}
+      - WEB_SCRAPER_CACHE_TTL=${WEB_SCRAPER_CACHE_TTL}
+      - WEB_SCRAPER_RELEVANCE_THRESHOLD=${WEB_SCRAPER_RELEVANCE_THRESHOLD}
 
     ports:
       - '4002:4002'
@@ -462,28 +466,7 @@ services:
     networks:
       - serenity_space_network
 
-  # searxng web search
-  searxng:
-    image: docker.io/searxng/searxng:latest
-    container_name: serenity_space_searxng
-    volumes:
-      - ./infrastructure/searxng:/etc/searxng:rw
-    ports:
-      - '8080:8080'
-    environment:
-      - SEARXNG_BASE_URL=${SEARXNG_URL}
-      - SEARXNG_SECRET=${SEARXNG_SECRET}
-      - SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
-    healthcheck:
-      test: ['CMD', 'wget', '--spider', '-q', 'http://searxng:8080/']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    restart: unless-stopped
-    networks:
-      - serenity_space_network
-
+  # whoogle web search
   whoogle-search:
     image: ${WHOOGLE_IMAGE:-benbusby/whoogle-search}
     container_name: whoogle-search
@@ -501,6 +484,8 @@ services:
       - /config/:size=10M,uid=927,gid=927,mode=1700
       - /var/lib/tor/:size=15M,uid=927,gid=927,mode=1700
       - /run/tor/:size=1M,uid=927,gid=927,mode=1700
+    ports:
+      - 5000:5000
     networks:
       - serenity_space_network
 

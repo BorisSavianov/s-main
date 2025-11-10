@@ -35,7 +35,7 @@ export class WebSearchService {
     @InjectRedis() private readonly redis: Redis,
   ) {
     this.whoogleBaseUrl = this.configService.get<string>(
-      'SEARXNG_URL',
+      'WHOOGLE_URL',
       'http://searxng:8080',
     );
     this.maxResults = this.configService.get<number>(

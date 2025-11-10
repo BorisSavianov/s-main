@@ -66,46 +66,6 @@ export class WebSearchController {
     };
   }
 
-  @Get('search')
-  async testSearch(@Query('q') query: string) {
-    if (!query) {
-      return { success: false, message: 'Query parameter "q" is required' };
-    }
-    const searxngBaseUrl = process.env.SEARCH_URL || 'http://searxng:8080';
-
-    try {
-      const url = new URL(`${searxngBaseUrl}/search`);
-      url.searchParams.set('q', query);
-      url.searchParams.set('format', 'json');
-      url.searchParams.set('categories', 'general');
-      url.searchParams.set('language', 'en');
-
-      const response = await fetch(url.toString(), {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${process.env.SEARXNG_SECRET}`,
-          'X-Forwarded-For': '127.0.0.1',
-          'X-Real-IP': '127.0.0.1',
-          'User-Agent': 'SerenitySpaceBot/1.0',
-          Host: 'searxng.local', // should match your settings.yml base_url host
-        },
-      });
-
-      const data = await response;
-
-      return {
-        success: true,
-        response: data,
-        data,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-  }
-
   @Get('stats')
   @ApiOperation({
     summary: 'Get user search statistics',
