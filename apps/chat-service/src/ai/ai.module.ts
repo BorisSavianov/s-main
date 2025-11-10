@@ -1,5 +1,5 @@
-// apps/chat-service/src/ai/ai.module.ts
-import { Module } from '@nestjs/common';
+// apps/chat-service/src/ai/ai.module.ts - UPDATED
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { HttpModule } from '@nestjs/axios';
 import { BullModule } from '@nestjs/bull';
@@ -10,6 +10,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AIService } from './ai.service';
 import { AIController } from './ai.controler';
 import { AiContext } from './entities/ai-context.entity';
+import { EnhancedAIService } from './web-ai.service';
 
 // Processors
 import { AIProcessor } from './processors/ai.processor';
@@ -19,11 +20,7 @@ import { JwtAuthGuard } from '../../../auth-service/src/auth/guards/jwt-auth.gua
 import { RolesGuard } from '../../../auth-service/src/auth/guards/roles.guard';
 import { JwtStrategy } from '../../../auth-service/src/auth/strategies/jwt.strategy';
 import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
-import { EnhancedAIService } from './web-ai.service';
 import { WebSearchModule } from '../web-search/web-search.module';
-// import { WebScraperService } from '../web-search/web-scraper.service';
-// import { ScraperAIIntegrationService } from '../web-search/scraper-ai-integration.service';
-// import { WebScraperController } from '../web-search/web-scraper.controller';
 
 @Module({
   imports: [
@@ -73,15 +70,15 @@ import { WebSearchModule } from '../web-search/web-search.module';
     PassportModule.register({ defaultStrategy: 'jwt' }),
 
     ConfigModule,
-    WebSearchModule,
+
+    // Import WebSearchModule to get access to WebScraperService
+    forwardRef(() => WebSearchModule),
   ],
-  controllers: [AIController /*WebScraperController*/],
+  controllers: [AIController],
   providers: [
     AIService,
     EnhancedAIService,
     AIProcessor,
-    // WebScraperService,
-    // ScraperAIIntegrationService,
 
     // Authentication strategy
     JwtStrategy,
@@ -90,12 +87,6 @@ import { WebSearchModule } from '../web-search/web-search.module';
     JwtAuthGuard,
     RolesGuard,
   ],
-  exports: [
-    AIService,
-    JwtAuthGuard,
-    RolesGuard,
-    EnhancedAIService,
-    // ScraperAIIntegrationService,
-  ],
+  exports: [AIService, EnhancedAIService, JwtAuthGuard, RolesGuard],
 })
 export class AiModule {}
