@@ -44,6 +44,21 @@ export interface EnhancedContext {
   timestamp: string;
 }
 
+interface SearchResult {
+  title: string;
+  url: string;
+  content: string;
+  score: number;
+  publishedDate?: string;
+}
+
+export interface SearchResponse {
+  query: string;
+  results: SearchResult[];
+  totalResults: number;
+  searchTime: number;
+}
+
 @Injectable()
 export class WebScraperService {
   private readonly logger = new Logger(WebScraperService.name);
@@ -141,9 +156,9 @@ export class WebScraperService {
   /**
    * Perform Whoogle search and return raw HTML
    */
-  private async performWhoogleSearch(query: string): Promise<string> {
+  private async performWhoogleSearch(query: string): Promise<SearchResult[]> {
     try {
-      this.logger.debug(`Performing Whoogle search for: ${query}`);
+      this.logger.debug(`Whoogle searching for: ${query}`);
 
       const response = await firstValueFrom(
         this.httpService.get(`${this.whoogleBaseUrl}/search`, {
@@ -158,9 +173,31 @@ export class WebScraperService {
         }),
       );
 
-      return response.data;
+      const data = response.data;
+
+      if (!data || !data.results || !Array.isArray(data.results)) {
+        this.logger.warn(`Invalid Whoogle response format`);
+        return [];
+      }
+
+      // Transform Whoogle response structure
+      return data.results.map((result: any, index: number) => ({
+        title: result.text || 'Untitled',
+        url: result.href || '',
+        content: result.text || '',
+        score: 1 - index * 0.1, // simple relevance fallback
+        publishedDate: result.publishedDate || null,
+      }));
     } catch (error) {
       this.logger.error(`Whoogle search failed: ${error.message}`);
+
+      if ((error as any).code === 'ECONNREFUSED') {
+        this.logger.warn(
+          'Whoogle service unavailable, returning empty results',
+        );
+        return [];
+      }
+
       throw error;
     }
   }
@@ -169,7 +206,7 @@ export class WebScraperService {
    * Extract and process search results from HTML
    */
   private async extractAndProcessResults(
-    html: string,
+    html: SearchResult[],
     query: string,
   ): Promise<ScrapedResult[]> {
     const $ = cheerio.load(html);

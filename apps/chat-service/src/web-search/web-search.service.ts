@@ -69,7 +69,7 @@ export class WebSearchService {
       }
 
       // Perform search
-      const results = await this.performSearxngSearch(query);
+      const results = await this.performWhoogleSearch(query);
 
       const response: SearchResponse = {
         query,
@@ -170,7 +170,7 @@ export class WebSearchService {
   /**
    * Perform actual SearxNG search
    */
-  private async performSearxngSearch(query: string): Promise<SearchResult[]> {
+  private async performWhoogleSearch(query: string): Promise<SearchResult[]> {
     try {
       this.logger.debug(`Whoogle searching for: ${query}`);
 
@@ -187,16 +187,20 @@ export class WebSearchService {
         }),
       );
 
-      if (!response.data || !response.data.results) {
+      const data = response.data;
+
+      if (!data || !data.results || !Array.isArray(data.results)) {
+        this.logger.warn(`Invalid Whoogle response format`);
         return [];
       }
 
-      return response.data.results.map((result: any, index: number) => ({
-        title: result.title || 'Untitled',
-        url: result.url || '',
-        content: result.content || result.snippet || '',
-        score: result.score || 1 - index * 0.1,
-        publishedDate: result.publishedDate || result.date,
+      // Transform Whoogle response structure
+      return data.results.map((result: any, index: number) => ({
+        title: result.text || 'Untitled',
+        url: result.href || '',
+        content: result.text || '',
+        score: 1 - index * 0.1, // simple relevance fallback
+        publishedDate: result.publishedDate || null,
       }));
     } catch (error) {
       this.logger.error(`Whoogle search failed: ${error.message}`);
