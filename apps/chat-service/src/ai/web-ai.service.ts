@@ -74,7 +74,7 @@ export class EnhancedAIService {
 
           // Perform web search
           const searchResults = await this.webSearchService.search(
-            searchQuery,
+            context.userMessage,
             context.userId,
           );
 
@@ -88,7 +88,7 @@ export class EnhancedAIService {
             sourcesUsed = searchResults.results.length;
 
             this.logger.debug(
-              `Web search completed: ${sourcesUsed} results for query "${searchQuery}"`,
+              `Web search completed: ${sourcesUsed} results for query "${context.userMessage}"`,
             );
           }
         } catch (error) {
@@ -129,7 +129,7 @@ export class EnhancedAIService {
       return {
         ...baseResponse,
         webSearchPerformed,
-        searchQuery: webSearchPerformed ? searchQuery : undefined,
+        searchQuery: webSearchPerformed ? context.userMessage : undefined,
         sourcesUsed: webSearchPerformed ? sourcesUsed : undefined,
       };
     } catch (error) {
