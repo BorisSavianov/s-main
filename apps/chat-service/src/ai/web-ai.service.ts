@@ -1,4 +1,4 @@
-// apps/chat-service/src/ai/web-ai.service.ts - UPDATED
+// apps/chat-service/src/ai/web-ai.service.ts - ENHANCED VERSION
 import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { AIService } from './ai.service';
 import { InjectQueue } from '@nestjs/bull';
@@ -6,6 +6,7 @@ import { Queue } from 'bull';
 import {
   WebScraperService,
   EnhancedContext,
+  NormalizedSearchResult,
 } from '../web-search/web-scraper.service';
 
 interface EnhancedChatContext {
@@ -27,7 +28,14 @@ interface EnhancedAIResponse {
   webSearchPerformed?: boolean;
   searchQuery?: string;
   sourcesUsed?: number;
-  citations?: Array<{ number: number; source: string; url: string }>;
+  citations?: Array<{
+    number: number;
+    source: string;
+    url: string;
+    excerpt?: string;
+  }>;
+  fullContextAvailable?: boolean;
+  extractedContent?: boolean;
 }
 
 @Injectable()
@@ -45,6 +53,7 @@ export class EnhancedAIService {
 
   /**
    * Generate AI response with optional web search integration
+   * Now uses enhanced scraper with HTML content extraction
    */
   async generateResponseWithSearch(
     context: EnhancedChatContext,
@@ -56,8 +65,10 @@ export class EnhancedAIService {
       let webSearchPerformed = false;
       let searchQuery = '';
       let sourcesUsed = 0;
+      let fullContextAvailable = false;
+      let extractedContent = false;
 
-      this.logger.debug('Generating response with search capability');
+      this.logger.debug('Generating response with enhanced search capability');
 
       // Check if web search should be performed
       if (
@@ -73,7 +84,7 @@ export class EnhancedAIService {
           // Extract search query from message
           searchQuery = this.extractSearchQuery(context.userMessage);
 
-          // Perform web search
+          // Perform enhanced web search with HTML fetching
           const searchResults =
             await this.webScraperService.scrapeSearchResults(
               searchQuery,
@@ -81,35 +92,48 @@ export class EnhancedAIService {
             );
 
           this.logger.debug(
-            `Search results: ${searchResults.results.length} items found`,
+            `Enhanced search completed: ${searchResults.results.length} results found`,
+          );
+          this.logger.debug(
+            `HTML fetch stats: ${searchResults.processingStats.htmlFetchSuccess} successful, ` +
+              `${searchResults.processingStats.htmlFetchFailed} failed`,
           );
 
           if (searchResults.results.length > 0) {
-            // Build enhanced context
+            // Build enhanced context with full content
             enhancedContext = this.webScraperService.buildEnhancedContext(
               searchResults,
               5, // Top 5 results
             );
 
-            // Build search context for AI
-            searchContext = this.buildSearchContext(enhancedContext);
+            // Build comprehensive search context for AI
+            searchContext = this.buildEnhancedSearchContext(enhancedContext);
             webSearchPerformed = true;
             sourcesUsed = enhancedContext.searchResults.length;
+            fullContextAvailable = enhancedContext.fullTextContent
+              ? enhancedContext.fullTextContent.length > 0
+              : false;
+            extractedContent = enhancedContext.searchResults.some(
+              (r) => r.extractedContent !== undefined,
+            );
 
             this.logger.debug(
-              `Web search completed: ${sourcesUsed} results for query "${searchQuery}"`,
+              `Enhanced context built: ${sourcesUsed} sources, ` +
+                `full content available: ${fullContextAvailable}, ` +
+                `extracted content: ${extractedContent}`,
             );
           }
         } catch (error) {
-          this.logger.error(`Web search failed: ${error.message}`);
+          this.logger.error(`Enhanced web search failed: ${error.message}`);
           // Continue without search results
         }
       }
 
-      // Build enhanced prompt with search context
+      // Build enhanced prompt with rich search context
       const enhancedPrompt = await this.buildEnhancedPrompt(
         context,
         searchContext,
+        enhancedContext,
       );
 
       this.logger.debug('Enhanced prompt built, calling AI service');
@@ -121,10 +145,10 @@ export class EnhancedAIService {
         userMessage: enhancedPrompt,
       });
 
-      // Extract citations if web search was performed
+      // Extract and enhance citations if web search was performed
       const citations =
         webSearchPerformed && enhancedContext
-          ? this.extractCitations(baseResponse.content, enhancedContext)
+          ? this.extractEnhancedCitations(baseResponse.content, enhancedContext)
           : undefined;
 
       // Queue content moderation
@@ -147,6 +171,8 @@ export class EnhancedAIService {
         searchQuery: webSearchPerformed ? searchQuery : undefined,
         sourcesUsed: webSearchPerformed ? sourcesUsed : undefined,
         citations,
+        fullContextAvailable,
+        extractedContent,
       };
     } catch (error) {
       this.logger.error(
@@ -168,11 +194,12 @@ export class EnhancedAIService {
   }
 
   /**
-   * Build enhanced prompt with search context
+   * Build enhanced prompt with rich search context and extracted content
    */
   private async buildEnhancedPrompt(
     context: EnhancedChatContext,
     searchContext: string,
+    enhancedContext?: EnhancedContext,
   ): Promise<string> {
     const recentHistory = context.recentMessages
       .slice(-10)
@@ -186,7 +213,9 @@ export class EnhancedAIService {
     );
 
     const promptParts = [
-      'You are a supportive mental health AI assistant. You provide empathetic, helpful responses while being careful not to provide medical advice. Always encourage users to seek professional help for serious concerns.',
+      'You are a supportive mental health AI assistant with access to current web information.',
+      'You provide empathetic, helpful responses while being careful not to provide medical advice.',
+      'Always encourage users to seek professional help for serious concerns.',
       '',
       'Recent conversation:',
       recentHistory,
@@ -196,16 +225,37 @@ export class EnhancedAIService {
       promptParts.push(semanticContext);
     }
 
-    if (searchContext) {
+    if (searchContext && enhancedContext) {
       promptParts.push('', searchContext, '');
-      promptParts.push(
-        '[Instructions] When using information from web search results:',
-        '- Cite sources using [1], [2], etc. notation',
-        '- Prioritize results with higher relevance scores',
-        '- Provide accurate, up-to-date information',
-        '- If information conflicts between sources, note the discrepancy',
-        '- Be transparent about the recency of the information',
-      );
+
+      // Add enhanced instructions based on content availability
+      if (
+        enhancedContext.fullTextContent &&
+        enhancedContext.fullTextContent.length > 0
+      ) {
+        promptParts.push(
+          '[Enhanced Instructions] You have access to full extracted content from web pages:',
+          '- Use the detailed extracted content to provide comprehensive, accurate answers',
+          '- Reference specific facts and details from the full content',
+          '- Cite sources using [1], [2], etc. notation',
+          '- Prioritize information from sources with higher relevance scores',
+          '- Cross-reference information across multiple sources when available',
+          '- Note the meta titles and descriptions for context',
+          '- Use headings from sources to understand content structure',
+          '- If information conflicts between sources, acknowledge the discrepancy',
+          '- Be transparent about the recency and quality of the information',
+          "- Do not fabricate or extrapolate beyond what's in the extracted content",
+        );
+      } else {
+        promptParts.push(
+          '[Standard Instructions] When using information from web search results:',
+          '- Cite sources using [1], [2], etc. notation',
+          '- Prioritize results with higher relevance scores',
+          '- Provide accurate, up-to-date information based on descriptions',
+          '- If information conflicts between sources, note the discrepancy',
+          '- Be transparent about the recency of the information',
+        );
+      }
     }
 
     promptParts.push('', `User: ${context.userMessage}`, '', 'AI:');
@@ -214,14 +264,14 @@ export class EnhancedAIService {
   }
 
   /**
-   * Build search context string from enhanced context
+   * Build enhanced search context with full extracted content
    */
-  private buildSearchContext(enhancedContext: EnhancedContext): string {
+  private buildEnhancedSearchContext(enhancedContext: EnhancedContext): string {
     const contextParts = [
-      '\n[Web Search Results]',
+      '\n[Enhanced Web Search Results with Full Content]',
       `Query: "${enhancedContext.query}"`,
       `Retrieved: ${new Date(enhancedContext.timestamp).toLocaleString()}`,
-      `Found ${enhancedContext.searchResults.length} relevant sources:`,
+      `Found ${enhancedContext.searchResults.length} relevant sources with extracted content:`,
       '',
     ];
 
@@ -229,11 +279,73 @@ export class EnhancedAIService {
       contextParts.push(
         `[${index + 1}] ${result.title}`,
         `   Source: ${result.metadata.domain}`,
-        `   Content: ${result.description.substring(0, 300)}...`,
-        `   Relevance: ${(result.relevanceScore * 100).toFixed(0)}%`,
+        `   URL: ${result.url}`,
+        `   Relevance: ${((result.relevanceScore || 0) * 100).toFixed(0)}%`,
+      );
+
+      // Add meta information if available
+      if (result.extractedContent) {
+        if (result.extractedContent.metaTitle) {
+          contextParts.push(
+            `   Meta Title: ${result.extractedContent.metaTitle}`,
+          );
+        }
+
+        if (result.extractedContent.metaDescription) {
+          contextParts.push(
+            `   Meta Description: ${result.extractedContent.metaDescription}`,
+          );
+        }
+
+        // Add key headings for structure understanding
+        if (result.extractedContent.headings.length > 0) {
+          contextParts.push(
+            `   Key Sections: ${result.extractedContent.headings.slice(0, 5).join(' | ')}`,
+          );
+        }
+
+        // Add full extracted content
+        if (result.extractedContent.mainText) {
+          contextParts.push(
+            `   Full Extracted Content:`,
+            `   ${result.extractedContent.mainText.substring(0, 2000)}${result.extractedContent.mainText.length > 2000 ? '...' : ''}`,
+          );
+        }
+
+        // Add key paragraphs if main text not available
+        if (
+          !result.extractedContent.mainText &&
+          result.extractedContent.paragraphs.length > 0
+        ) {
+          contextParts.push(
+            `   Key Paragraphs:`,
+            ...result.extractedContent.paragraphs
+              .slice(0, 3)
+              .map((p) => `   - ${p}`),
+          );
+        }
+      } else {
+        // Fallback to description if extraction failed
+        contextParts.push(
+          `   Description: ${result.description.substring(0, 300)}...`,
+        );
+      }
+
+      contextParts.push('');
+    });
+
+    // Add full text content summary
+    if (
+      enhancedContext.fullTextContent &&
+      enhancedContext.fullTextContent.length > 0
+    ) {
+      contextParts.push(
+        '[Full Content Summary]',
+        `Successfully extracted full content from ${enhancedContext.fullTextContent.length} sources.`,
+        'Use this detailed information to provide comprehensive, well-sourced answers.',
         '',
       );
-    });
+    }
 
     return contextParts.join('\n');
   }
@@ -260,6 +372,8 @@ export class EnhancedAIService {
       /statistics (about|on|for)/i,
       /research (on|about)/i,
       /latest (version|update|release)/i,
+      /current (status|situation|state)/i,
+      /recent (developments|changes|updates)/i,
     ];
 
     return searchTriggers.some((pattern) => pattern.test(message));
@@ -284,16 +398,17 @@ export class EnhancedAIService {
   }
 
   /**
-   * Extract citations from AI response
+   * Extract enhanced citations with excerpts from AI response
    */
-  private extractCitations(
+  private extractEnhancedCitations(
     aiResponse: string,
     enhancedContext: EnhancedContext,
-  ): Array<{ number: number; source: string; url: string }> {
+  ): Array<{ number: number; source: string; url: string; excerpt?: string }> {
     const citations: Array<{
       number: number;
       source: string;
       url: string;
+      excerpt?: string;
     }> = [];
     const citationPattern = /\[(\d+)\]/g;
     let match;
@@ -303,14 +418,98 @@ export class EnhancedAIService {
       const result = enhancedContext.searchResults[citationNum - 1];
 
       if (result) {
+        // Find relevant excerpt from extracted content
+        let excerpt: string | undefined;
+
+        if (result.extractedContent?.mainText) {
+          // Try to find the most relevant excerpt based on context around citation
+          const citationIndex = match.index;
+          const contextBefore = aiResponse.substring(
+            Math.max(0, citationIndex - 200),
+            citationIndex,
+          );
+
+          // Simple heuristic: find first sentence in extracted content that contains
+          // words from the context
+          const contextWords = contextBefore
+            .toLowerCase()
+            .split(/\s+/)
+            .slice(-10);
+          const sentences = result.extractedContent.mainText.split(/[.!?]\s+/);
+
+          for (const sentence of sentences) {
+            const sentenceLower = sentence.toLowerCase();
+            const matches = contextWords.filter(
+              (word) => word.length > 4 && sentenceLower.includes(word),
+            ).length;
+
+            if (matches >= 2) {
+              excerpt = sentence.substring(0, 200);
+              break;
+            }
+          }
+
+          // Fallback to first paragraph
+          if (!excerpt && result.extractedContent.paragraphs.length > 0) {
+            excerpt = result.extractedContent.paragraphs[0].substring(0, 200);
+          }
+        }
+
         citations.push({
           number: citationNum,
           source: result.title,
           url: result.url,
+          excerpt: excerpt || result.description.substring(0, 200),
         });
       }
     }
 
     return citations;
+  }
+
+  /**
+   * Validate and enrich search results for safe AI consumption
+   */
+  async validateAndEnrichResults(results: NormalizedSearchResult[]): Promise<{
+    valid: boolean;
+    warnings: string[];
+    enrichedResults: NormalizedSearchResult[];
+  }> {
+    const warnings: string[] = [];
+
+    // Check average relevance
+    const avgRelevance =
+      results.reduce((sum, r) => sum + (r.relevanceScore || 0), 0) /
+      results.length;
+
+    if (avgRelevance < 0.5) {
+      warnings.push(
+        'Low average relevance score - results may not be highly relevant',
+      );
+    }
+
+    // Check HTML fetch success rate
+    const htmlFetchSuccess = results.filter(
+      (r) => r.html && r.metadata.statusCode === 200,
+    ).length;
+
+    if (htmlFetchSuccess < results.length * 0.5) {
+      warnings.push(
+        `Only ${htmlFetchSuccess}/${results.length} pages successfully fetched - some content may be missing`,
+      );
+    }
+
+    // Filter and enrich
+    const enrichedResults = results.filter(
+      (result) =>
+        (result.relevanceScore || 0) >= 0.6 &&
+        (result.description.length > 50 || result.extractedContent?.mainText),
+    );
+
+    return {
+      valid: enrichedResults.length > 0,
+      warnings,
+      enrichedResults,
+    };
   }
 }

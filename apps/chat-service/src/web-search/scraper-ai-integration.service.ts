@@ -1,16 +1,16 @@
-// apps/chat-service/src/web-search/scraper-ai-integration.service.ts
+// ==================================================================================
+// apps/chat-service/src/web-search/scraper-ai-integration.service.ts - UPDATED
+// ==================================================================================
+
 import { Injectable, Logger } from '@nestjs/common';
 import {
   WebScraperService,
-  ScraperResponse,
+  NormalizedScraperResponse,
   EnhancedContext,
 } from './web-scraper.service';
 import { EnhancedAIService } from '../ai/web-ai.service';
 import { IntegratedSearchResponseDto } from './dto/web-scrape.dto';
 
-/**
- * Request for integrated search with AI
- */
 interface IntegratedSearchRequest {
   userMessage: string;
   sessionId: string;
@@ -29,7 +29,7 @@ export class ScraperAIIntegrationService {
   ) {}
 
   /**
-   * Main integration method - combines web scraping with AI response
+   * Main integration method - combines enhanced web scraping with AI response
    */
   async processWithWebSearch(
     request: IntegratedSearchRequest,
@@ -40,6 +40,7 @@ export class ScraperAIIntegrationService {
       let enhancedContext: EnhancedContext | undefined;
       let searchQuery: string | undefined;
       let webSearchPerformed = false;
+      let fullContentAvailable = false;
 
       // Determine if web search should be performed
       if (
@@ -47,52 +48,67 @@ export class ScraperAIIntegrationService {
         this.shouldPerformWebSearch(request.userMessage)
       ) {
         this.logger.debug(
-          `Web search triggered for user ${request.userId}: ${request.userMessage}`,
+          `Enhanced web search triggered for user ${request.userId}: ${request.userMessage}`,
         );
 
-        // Extract search query from user message
+        // Extract search query
         searchQuery = this.extractSearchQuery(request.userMessage);
 
-        // Perform web scraping
+        // Perform enhanced web scraping with HTML extraction
         const scraperResponse =
           await this.webScraperService.scrapeSearchResults(
             searchQuery,
             request.userId,
           );
 
-        // Build enhanced context for AI
+        this.logger.debug(
+          `Scraper response: ${scraperResponse.results.length} results, ` +
+            `${scraperResponse.processingStats.htmlFetchSuccess} HTML fetches successful`,
+        );
+
+        // Build enhanced context
         enhancedContext = this.webScraperService.buildEnhancedContext(
           scraperResponse,
           request.maxSearchResults || 5,
         );
 
         webSearchPerformed = true;
+        fullContentAvailable = enhancedContext.fullTextContent
+          ? enhancedContext.fullTextContent.length > 0
+          : false;
 
         this.logger.debug(
-          `Web search completed: ${enhancedContext.searchResults.length} results for query "${searchQuery}"`,
+          `Enhanced context built: ${enhancedContext.searchResults.length} sources, ` +
+            `full content available: ${fullContentAvailable}`,
         );
       }
 
-      // Build AI prompt with web search context
-      const aiPrompt = this.buildIntegratedPrompt(
-        request.userMessage,
-        enhancedContext,
-      );
-
-      // Generate AI response
-      const aiResponse = await this.generateAIResponseWithContext(
-        request.sessionId,
-        aiPrompt,
-        enhancedContext,
-      );
+      // Generate AI response with enhanced context
+      const aiResponse =
+        await this.enhancedAIService.generateResponseWithSearch(
+          {
+            userMessage: request.userMessage,
+            sessionId: request.sessionId,
+            userId: request.userId,
+            webSearchEnabled: request.performWebSearch,
+            recentMessages: [], // Pass from actual session if needed
+          },
+          'message-id', // Pass actual message ID if available
+        );
 
       return {
-        aiResponse,
+        aiResponse: aiResponse.content,
         webSearchPerformed,
         searchQuery,
         sourcesUsed: enhancedContext?.searchResults.length || 0,
         searchResults: enhancedContext,
         processingTime: Date.now() - startTime,
+        citations: aiResponse.citations,
+        metadata: {
+          fullContentAvailable,
+          extractedContentUsed: aiResponse.extractedContent || false,
+          confidenceScore: aiResponse.confidence!,
+        },
       };
     } catch (error) {
       this.logger.error(
@@ -103,7 +119,7 @@ export class ScraperAIIntegrationService {
   }
 
   /**
-   * Determine if web search should be performed based on user message
+   * Determine if web search should be performed
    */
   private shouldPerformWebSearch(message: string): boolean {
     const searchTriggers = [
@@ -148,84 +164,15 @@ export class ScraperAIIntegrationService {
   }
 
   /**
-   * Build integrated prompt combining user message and web search context
+   * Validate and sanitize enhanced search results
    */
-  private buildIntegratedPrompt(
-    userMessage: string,
-    enhancedContext?: EnhancedContext,
-  ): string {
-    const promptParts = [
-      'You are a supportive mental health AI assistant with access to current web information.',
-      'Provide empathetic, helpful responses while being careful not to provide medical advice.',
-      'Always encourage users to seek professional help for serious concerns.',
-      '',
-      `User Message: ${userMessage}`,
-    ];
-
-    if (enhancedContext && enhancedContext.searchResults.length > 0) {
-      const webContext =
-        this.webScraperService.formatForAIPrompt(enhancedContext);
-      promptParts.push('', webContext);
-    }
-
-    return promptParts.join('\n');
-  }
-
-  /**
-   * Generate AI response with web search context
-   */
-  private async generateAIResponseWithContext(
-    sessionId: string,
-    prompt: string,
-    enhancedContext?: EnhancedContext,
-  ): Promise<string> {
-    // This integrates with your existing EnhancedAIService
-    // Adapt based on your actual service interface
-
-    return `AI response incorporating ${enhancedContext ? enhancedContext.searchResults.length : 0} web sources`;
-  }
-
-  /**
-   * Extract citations from AI response and match with sources
-   */
-  extractCitations(
-    aiResponse: string,
-    searchResults?: EnhancedContext,
-  ): Array<{ number: number; source: string; url: string }> {
-    if (!searchResults) return [];
-
-    const citations: Array<{
-      number: number;
-      source: string;
-      url: string;
-    }> = [];
-    const citationPattern = /\[(\d+)\]/g;
-    let match;
-
-    while ((match = citationPattern.exec(aiResponse)) !== null) {
-      const citationNum = parseInt(match[1]);
-      const result = searchResults.searchResults[citationNum - 1];
-
-      if (result) {
-        citations.push({
-          number: citationNum,
-          source: result.title,
-          url: result.url,
-        });
-      }
-    }
-
-    return citations;
-  }
-
-  /**
-   * Validate and sanitize web search results for AI consumption
-   */
-  validateSearchResults(scraperResponse: ScraperResponse): {
+  async validateSearchResults(
+    scraperResponse: NormalizedScraperResponse,
+  ): Promise<{
     valid: boolean;
     warnings: string[];
-    sanitizedResults: ScraperResponse;
-  } {
+    sanitizedResults: NormalizedScraperResponse;
+  }> {
     const warnings: string[] = [];
 
     if (scraperResponse.processingStats.averageRelevanceScore < 0.5) {
@@ -240,11 +187,21 @@ export class ScraperAIIntegrationService {
       );
     }
 
+    if (
+      scraperResponse.processingStats.htmlFetchFailed >
+      scraperResponse.processingStats.htmlFetchSuccess
+    ) {
+      warnings.push(
+        'Majority of HTML fetches failed - limited full content available',
+      );
+    }
+
     const sanitizedResults = {
       ...scraperResponse,
       results: scraperResponse.results.filter(
         (result) =>
-          result.relevanceScore >= 0.6 && result.description.length > 50,
+          (result.relevanceScore || 0) >= 0.6 &&
+          (result.description.length > 50 || result.extractedContent?.mainText),
       ),
     };
 
@@ -256,15 +213,21 @@ export class ScraperAIIntegrationService {
   }
 
   /**
-   * Generate structured response for mental health queries with web data
+   * Generate structured response for mental health queries with enhanced data
    */
   async processHealthQuery(
     query: string,
     userId: string,
   ): Promise<{
     response: string;
-    sources: Array<{ title: string; url: string; reliability: string }>;
+    sources: Array<{
+      title: string;
+      url: string;
+      reliability: string;
+      hasFullContent: boolean;
+    }>;
     disclaimer: string;
+    fullContentAvailable: boolean;
   }> {
     try {
       const scraperResponse = await this.webScraperService.scrapeSearchResults(
@@ -272,7 +235,7 @@ export class ScraperAIIntegrationService {
         userId,
       );
 
-      const validation = this.validateSearchResults(scraperResponse);
+      const validation = await this.validateSearchResults(scraperResponse);
 
       if (!validation.valid) {
         return {
@@ -281,6 +244,7 @@ export class ScraperAIIntegrationService {
           sources: [],
           disclaimer:
             'Mental health information should always be verified with qualified professionals.',
+          fullContentAvailable: false,
         };
       }
 
@@ -293,15 +257,21 @@ export class ScraperAIIntegrationService {
         5,
       );
 
+      const fullContentAvailable = enhancedContext.fullTextContent
+        ? enhancedContext.fullTextContent.length > 0
+        : false;
+
       return {
         response: `Based on current information: ${enhancedContext.contextSummary}`,
         sources: reliableSources.map((result) => ({
           title: result.title,
           url: result.url,
           reliability: this.assessSourceReliability(result.metadata.domain),
+          hasFullContent: !!result.extractedContent?.mainText,
         })),
         disclaimer:
           'This information is for educational purposes only and should not replace professional medical advice.',
+        fullContentAvailable,
       };
     } catch (error) {
       this.logger.error(`Health query processing failed: ${error.message}`);
@@ -330,7 +300,7 @@ export class ScraperAIIntegrationService {
       const domain = result.metadata?.domain || '';
       return (
         reliableDomains.some((reliable) => domain.includes(reliable)) ||
-        result.relevanceScore > 0.8
+        (result.relevanceScore || 0) > 0.8
       );
     });
   }

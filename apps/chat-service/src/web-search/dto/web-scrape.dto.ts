@@ -8,6 +8,7 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { NormalizedSearchResult } from '../web-scraper.service';
 
 /**
  * DTO for scraping web search results
@@ -181,100 +182,131 @@ export class ScraperResponseDto {
  */
 export class EnhancedContextDto {
   @ApiProperty({
-    description: 'Original search query',
+    description: 'Original user query that triggered the web search',
+    example: 'latest news on NVIDIA',
   })
   query: string;
 
   @ApiProperty({
-    description: 'Top search results',
-    type: [ScrapedResultDto],
+    description: 'Normalized list of search results',
   })
-  searchResults: ScrapedResultDto[];
+  searchResults: NormalizedSearchResult[];
 
   @ApiProperty({
-    description: 'Context summary for AI',
+    description: 'AI-generated summary of the extracted context',
     example:
-      'Search results for: "latest news on NVIDIA"\nFound 5 relevant sources...',
+      'NVIDIA has released new AI integrations and updates across multiple product lines...',
   })
   contextSummary: string;
 
   @ApiProperty({
-    description: 'Top source domains',
+    description: 'Top relevant sources ranked by importance',
+    example: ['nvidia.com', 'cnbc.com', 'yahoo.com'],
     type: [String],
-    example: ['nvidianews.nvidia.com', 'finance.yahoo.com'],
   })
   topSources: string[];
 
   @ApiProperty({
-    description: 'Relevance threshold used',
-    example: 0.6,
+    description: 'Cutoff threshold used to filter relevant results',
+    example: 0.65,
   })
   relevanceThreshold: number;
 
   @ApiProperty({
-    description: 'Timestamp of context generation',
-    example: '2025-11-10T16:30:40.307Z',
+    description: 'Timestamp when the context was generated (ISO 8601)',
+    example: '2025-11-15T09:23:41.120Z',
   })
   timestamp: string;
+
+  @ApiProperty({
+    description: 'Extracted full-text HTML content for each visited page',
+    type: [String],
+    required: false,
+    example: [
+      'NVIDIA today announced new AI-powered hardware for data centers...',
+      'The stock price of NVIDIA increased following strong quarterly earnings...',
+    ],
+  })
+  fullTextContent?: string[];
 }
 
-/**
- * Response DTO for integrated search
- */
 export class IntegratedSearchResponseDto {
   @ApiProperty({
-    description: 'AI generated response',
+    description: 'AI-generated main response text',
     example: 'Based on recent information, NVIDIA announced...',
   })
   aiResponse: string;
 
   @ApiProperty({
-    description: 'Whether web search was performed',
+    description: 'Indicates whether the web search pipeline executed',
     example: true,
   })
   webSearchPerformed: boolean;
 
   @ApiProperty({
-    description: 'Search query used',
+    description: 'Query used for performing the search',
     example: 'latest news on NVIDIA',
     required: false,
   })
   searchQuery?: string;
 
   @ApiProperty({
-    description: 'Number of sources used',
+    description: 'Number of sources used from the enhanced context',
     example: 5,
   })
   sourcesUsed: number;
 
   @ApiProperty({
-    description: 'Search results context',
-    type: EnhancedContextDto,
+    description: 'The full Enhanced AI context generated from the search',
+    type: () => EnhancedContextDto,
     required: false,
   })
   searchResults?: EnhancedContextDto;
 
   @ApiProperty({
-    description: 'Total processing time (ms)',
+    description: 'Total time the request took to process, in milliseconds',
     example: 1523,
   })
   processingTime: number;
 
   @ApiProperty({
-    description: 'Citations extracted from AI response',
+    description: 'Citation references extracted from the AI response',
+    required: false,
     type: 'array',
     items: {
       type: 'object',
       properties: {
-        number: { type: 'number', example: 1 },
-        source: { type: 'string', example: 'NVIDIA Newsroom' },
+        number: {
+          type: 'number',
+          example: 1,
+          description: 'The citation index inside the AI response',
+        },
+        source: {
+          type: 'string',
+          example: 'NVIDIA Newsroom',
+          description: 'Human-friendly label for the citation source',
+        },
         url: {
           type: 'string',
           example: 'https://nvidianews.nvidia.com/news/latest',
+          description: 'Canonical source URL',
         },
       },
     },
-    required: false,
   })
   citations?: Array<{ number: number; source: string; url: string }>;
+
+  @ApiProperty({
+    description: 'Metadata describing how content was processed',
+    example: {
+      fullContentAvailable: true,
+      extractedContentUsed: false,
+      confidenceScore: 0.87,
+    },
+  })
+  metadata: {
+    fullContentAvailable: boolean;
+    extractedContentUsed: boolean;
+    confidenceScore: number;
+  };
 }

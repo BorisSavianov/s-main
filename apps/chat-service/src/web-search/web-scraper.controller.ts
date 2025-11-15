@@ -1,4 +1,4 @@
-// apps/chat-service/src/web-search/web-scraper.controller.ts
+// apps/chat-service/src/web-search/web-scraper.controller.ts - UPDATED
 import {
   Controller,
   Post,
@@ -42,33 +42,58 @@ export class WebScraperController {
   @Post('scrape')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Scrape and process Whoogle JSON search results',
+    summary: 'Scrape and process Whoogle JSON search results (Enhanced)',
     description:
-      'Perform web search via Whoogle and extract structured data from JSON response',
+      'Perform web search via Whoogle, extract structured data, and fetch full HTML content from result pages',
   })
   @ApiBody({ type: ScrapeQueryDto })
   @ApiResponse({
     status: 200,
-    description: 'Scraping completed successfully',
+    description:
+      'Scraping completed successfully with enhanced content extraction',
     type: ScraperResponseDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - authentication required',
-  })
-  @ApiResponse({
-    status: 429,
-    description: 'Too many requests - rate limit exceeded',
-  })
-  @ApiResponse({
-    status: 503,
-    description: 'Service unavailable - Whoogle service error',
   })
   async scrapeSearchResults(
     @Body() body: ScrapeQueryDto,
     @GetUser() user: any,
   ) {
+    // Use enhanced scraper with HTML fetching
     const results = await this.webScraperService.scrapeSearchResults(
+      body.query,
+      user.id,
+    );
+
+    return {
+      success: true,
+      data: results,
+      metadata: {
+        htmlFetchEnabled: true,
+        htmlFetchSuccess: results.processingStats.htmlFetchSuccess,
+        htmlFetchFailed: results.processingStats.htmlFetchFailed,
+        extractedContentAvailable: results.results.some(
+          (r) => r.extractedContent,
+        ),
+      },
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  @Post('scrape/legacy')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Scrape results in legacy format (Backward Compatible)',
+    description: 'Returns results in the old format for backward compatibility',
+  })
+  @ApiBody({ type: ScrapeQueryDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Scraping completed in legacy format',
+  })
+  async scrapeSearchResultsLegacy(
+    @Body() body: ScrapeQueryDto,
+    @GetUser() user: any,
+  ) {
+    const results = await this.webScraperService.scrapeSearchResultsLegacy(
       body.query,
       user.id,
     );
@@ -83,19 +108,15 @@ export class WebScraperController {
   @Post('scrape/enhanced')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Scrape and format for AI integration',
+    summary: 'Scrape and format for AI integration with full content',
     description:
-      'Scrape search results and format them for AI service consumption with enhanced context',
+      'Scrape search results with HTML extraction and format for AI service consumption',
   })
   @ApiBody({ type: ScrapeQueryDto })
   @ApiResponse({
     status: 200,
-    description: 'Enhanced context generated successfully',
+    description: 'Enhanced context generated with full content extraction',
     type: EnhancedContextDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized',
   })
   async scrapeForAI(@Body() body: ScrapeQueryDto, @GetUser() user: any) {
     const scraperResponse = await this.webScraperService.scrapeSearchResults(
@@ -115,6 +136,14 @@ export class WebScraperController {
       data: {
         enhancedContext,
         aiPrompt,
+        metadata: {
+          fullContentAvailable: enhancedContext.fullTextContent
+            ? enhancedContext.fullTextContent.length > 0
+            : false,
+          extractedContentCount: enhancedContext.searchResults.filter(
+            (r) => r.extractedContent,
+          ).length,
+        },
       },
       timestamp: new Date().toISOString(),
     };
@@ -123,23 +152,15 @@ export class WebScraperController {
   @Post('integrated-search')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Perform integrated web search with AI response',
+    summary: 'Perform integrated web search with enhanced AI response',
     description:
-      'Combines web scraping with AI response generation for context-aware answers',
+      'Combines enhanced web scraping (with HTML extraction) and AI response generation',
   })
   @ApiBody({ type: IntegratedSearchDto })
   @ApiResponse({
     status: 200,
-    description: 'Integrated search completed successfully',
+    description: 'Integrated search with full content extraction completed',
     type: IntegratedSearchResponseDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized',
-  })
-  @ApiResponse({
-    status: 429,
-    description: 'Too many requests',
   })
   async integratedSearch(
     @Body() body: IntegratedSearchDto,
@@ -167,14 +188,6 @@ export class WebScraperController {
     description:
       'Retrieve scraping history and statistics for the authenticated user',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Statistics retrieved successfully',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized',
-  })
   async getStats(@GetUser() user: any) {
     const stats = await this.webScraperService.getUserScrapingStats(user.id);
 
@@ -190,14 +203,6 @@ export class WebScraperController {
     summary: 'Check web scraper service health',
     description: 'Verify scraper and Whoogle service availability',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Service is healthy',
-  })
-  @ApiResponse({
-    status: 503,
-    description: 'Service is unhealthy',
-  })
   async healthCheck() {
     const isHealthy = await this.webScraperService.healthCheck();
 
@@ -205,7 +210,13 @@ export class WebScraperController {
       success: true,
       data: {
         status: isHealthy ? 'healthy' : 'unhealthy',
-        service: 'Whoogle Web Scraper',
+        service: 'Enhanced Whoogle Web Scraper with HTML Extraction',
+        features: {
+          htmlFetchEnabled: true,
+          contentExtraction: true,
+          deduplication: true,
+          safetyFiltering: true,
+        },
       },
       timestamp: new Date().toISOString(),
     };
