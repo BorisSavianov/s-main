@@ -106,6 +106,12 @@ jobs:
           REDIS_URL: redis://localhost:6379
           ELASTICSEARCH_URL: http://localhost:9200
 
+      - name: Upload coverage reports to Codecov
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+
   # Docker Build Test
   docker-build-test:
     runs-on: ubuntu-latest
