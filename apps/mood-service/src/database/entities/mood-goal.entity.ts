@@ -33,8 +33,21 @@ export class MoodGoal {
   })
   currentValue: number;
 
-  @Column({ name: 'target_date', type: 'date', nullable: true })
+  @Column({ name: 'target_date', type: 'timestamp', nullable: true })
   targetDate?: Date;
+
+  @Column({ name: 'current_streak', default: 0 })
+  currentStreak: number;
+
+  @Column({ name: 'longest_streak', default: 0 })
+  longestStreak: number;
+
+  @Column({ type: 'jsonb', nullable: true })
+  milestones?: {
+    value: number;
+    isAchieved: boolean;
+    achievedAt?: Date;
+  }[];
 
   @Column({ name: 'is_achieved', default: false })
   isAchieved: boolean;

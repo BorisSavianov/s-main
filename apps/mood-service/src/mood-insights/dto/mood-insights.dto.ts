@@ -92,4 +92,13 @@ export class MoodInsightResponseDto {
 
   @ApiProperty({ example: '2024-01-15T10:00:00.000Z' })
   updatedAt: string;
+
+  @ApiPropertyOptional({ example: 'Try to sleep earlier' })
+  recommendation?: string;
+
+  @ApiProperty({ example: 'PATTERN' })
+  category: string;
+
+  @ApiPropertyOptional({ example: 'uuid-here' })
+  relatedEntityId?: string;
 }

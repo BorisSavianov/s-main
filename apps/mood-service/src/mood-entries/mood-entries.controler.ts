@@ -52,10 +52,6 @@ export class MoodEntriesController {
     description: 'Mood entry created successfully',
     type: MoodEntryResponseDto,
   })
-  @ApiResponse({
-    status: 409,
-    description: 'Mood entry already exists for this date',
-  })
   async createMoodEntry(
     @GetUser('userId') userId: string,
     @Body() createMoodEntryDto: CreateMoodEntryDto,

@@ -22,7 +22,6 @@ export class CreateMoodGoalDto {
   @ApiProperty({ example: 4.0 })
   @IsNumber()
   @Min(0)
-  @Max(5)
   targetValue: number;
 
   @ApiPropertyOptional({ example: '2024-02-15' })
@@ -44,7 +43,6 @@ export class UpdateMoodGoalDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Max(5)
   targetValue?: number;
 
   @ApiPropertyOptional({ example: '2024-03-15' })
@@ -99,6 +97,21 @@ export class MoodGoalResponseDto {
 
   @ApiProperty({ example: '2024-01-15T10:00:00.000Z' })
   updatedAt: string;
+
+  @ApiProperty({ example: 5 })
+  currentStreak: number;
+
+  @ApiProperty({ example: 10 })
+  longestStreak: number;
+
+  @ApiPropertyOptional({
+    example: [{ value: 7, isAchieved: true, achievedAt: '2024-01-20' }],
+  })
+  milestones?: {
+    value: number;
+    isAchieved: boolean;
+    achievedAt?: Date;
+  }[];
 }
 
 export class MoodGoalSearchDto {

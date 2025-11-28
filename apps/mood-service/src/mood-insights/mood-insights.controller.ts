@@ -64,6 +64,31 @@ export class MoodInsightsController {
     };
   }
 
+  @Post('generate-ai')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Generate AI-driven insights' })
+  @ApiResponse({
+    status: 201,
+    description: 'AI insights generated successfully',
+  })
+  async generateAiInsights(
+    @GetUser('userId') userId: string,
+    @Query('days') days?: number,
+  ): Promise<ApiResponseDto> {
+    const result = await this.moodInsightsService.generateAiInsights(
+      userId,
+      days,
+    );
+
+    return {
+      success: true,
+      message: `Generated ${result.generated} AI insights`,
+      data: result,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
   @Get(':insightId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

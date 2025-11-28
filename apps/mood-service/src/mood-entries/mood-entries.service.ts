@@ -10,6 +10,7 @@ import { Repository, Between, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 
 import { MoodEntry } from '../database/entities/mood-entry.entity';
 import { RedisService } from '../redis/redis.service';
+import { MoodGoalsService } from '../mood-goals/mood-goals.service';
 
 import {
   CreateMoodEntryDto,
@@ -28,6 +29,7 @@ export class MoodEntriesService {
     @InjectRepository(MoodEntry)
     private readonly moodEntryRepository: Repository<MoodEntry>,
     private readonly redisService: RedisService,
+    private readonly moodGoalsService: MoodGoalsService,
   ) {}
 
   async createMoodEntry(
@@ -36,17 +38,8 @@ export class MoodEntriesService {
   ): Promise<MoodEntryResponseDto> {
     const { entryDate, ...entryData } = createMoodEntryDto;
 
-    // Check if entry already exists for this date
-    const existingEntry = await this.moodEntryRepository.findOne({
-      where: {
-        userId,
-        entryDate: new Date(entryDate),
-      },
-    });
+    // Allow multiple entries per day - removed duplicate check
 
-    if (existingEntry) {
-      throw new ConflictException('Mood entry already exists for this date');
-    }
 
     const moodEntry = this.moodEntryRepository.create({
       ...entryData,
@@ -61,6 +54,9 @@ export class MoodEntriesService {
     await this.redisService.del(`mood:stats:${userId}`);
 
     this.logger.log(`Mood entry created for user: ${userId} on ${entryDate}`);
+
+    // Check and update goals progress
+    await this.moodGoalsService.checkGoalsProgress(userId);
 
     return this.transformToMoodEntryResponse(savedEntry);
   }

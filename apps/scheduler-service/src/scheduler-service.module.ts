@@ -29,6 +29,7 @@ import { User } from 'apps/user-service/src/database/entities/user.entity';
 import { CounselorProfile } from 'apps/user-service/src/database/entities/counselor-profile.entity';
 import { UserSession } from 'apps/user-service/src/database/entities/user-session.entity';
 import { OAuthProvider } from 'apps/user-service/src/database/entities/oauth-provider.entity';
+import { UserPreferences } from 'apps/user-service/src/database/entities/user-preferences.entity';
 import { UsersModule } from 'apps/user-service/src/users/users.module';
 
 @Module({
@@ -61,6 +62,7 @@ import { UsersModule } from 'apps/user-service/src/users/users.module';
           CounselorProfile,
           UserSession,
           OAuthProvider,
+          UserPreferences,
         ],
         synchronize: false, // Set to false in production
         logging: configService.get<string>('NODE_ENV') === 'development',

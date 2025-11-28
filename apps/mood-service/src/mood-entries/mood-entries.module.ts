@@ -7,9 +7,10 @@ import { MoodEntriesService } from './mood-entries.service';
 import { MoodEntry } from '../database/entities/mood-entry.entity';
 import { RedisModule } from '../redis/redis.module';
 import { AuthModule } from '../auth.module';
+import { MoodGoalsModule } from '../mood-goals/mood-goals.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([MoodEntry]), RedisModule, AuthModule],
+  imports: [TypeOrmModule.forFeature([MoodEntry]), RedisModule, AuthModule, MoodGoalsModule],
   controllers: [MoodEntriesController],
   providers: [MoodEntriesService],
   exports: [MoodEntriesService],

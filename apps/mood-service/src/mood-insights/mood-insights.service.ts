@@ -4,7 +4,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { MoodInsight } from '../database/entities/mood-insight.entity';
+import { MoodEntry } from '../database/entities/mood-entry.entity';
 import { RedisService } from '../redis/redis.service';
+import { MoodAiService } from '../mood-ai/mood-ai.service';
+import { MoreThanOrEqual } from 'typeorm';
 
 import {
   CreateMoodInsightDto,
@@ -19,7 +22,10 @@ export class MoodInsightsService {
   constructor(
     @InjectRepository(MoodInsight)
     private readonly moodInsightRepository: Repository<MoodInsight>,
+    @InjectRepository(MoodEntry)
+    private readonly moodEntryRepository: Repository<MoodEntry>,
     private readonly redisService: RedisService,
+    private readonly moodAiService: MoodAiService,
   ) {}
 
   async createMoodInsight(
@@ -153,6 +159,137 @@ export class MoodInsightsService {
     this.logger.log(`Mood insight deleted: ${insightId} for user: ${userId}`);
   }
 
+  /**
+   * Generate AI-driven insights for a user
+   * This replaces rule-based insights with personalized AI analysis
+   */
+  async generateAiInsights(userId: string, days: number = 14): Promise<{
+    generated: number;
+    insights: MoodInsightResponseDto[];
+  }> {
+    try {
+      // Fetch recent mood entries
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+
+      const entries = await this.moodEntryRepository.find({
+        where: {
+          userId,
+          entryDate: MoreThanOrEqual(startDate),
+        },
+        order: { entryDate: 'DESC' },
+      });
+
+      if (entries.length < 3) {
+        this.logger.warn(
+          `Insufficient data for AI insights (${entries.length} entries)`,
+        );
+        return { generated: 0, insights: [] };
+      }
+
+      // Generate AI analysis
+      const aiAnalysis = await this.moodAiService.generateDeepAnalysis(
+        userId,
+        entries,
+      );
+
+      const newInsights: MoodInsightResponseDto[] = [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Save AI insights
+      for (const insight of aiAnalysis.insights) {
+        const existing = await this.moodInsightRepository.findOne({
+          where: {
+            userId,
+            insightText: insight,
+            createdAt: MoreThanOrEqual(today),
+          },
+        });
+
+        if (!existing) {
+          const saved = await this.moodInsightRepository.save({
+            userId,
+            insightType: 'ai_generated',
+            insightText: insight,
+            category: 'AI_DEEP_DIVE',
+            confidenceScore: 0.9,
+            dataPoints: entries.length,
+            isRead: false,
+          });
+          newInsights.push(this.transformToMoodInsightResponse(saved));
+        }
+      }
+
+      // Save AI patterns
+      for (const pattern of aiAnalysis.patterns) {
+        const existing = await this.moodInsightRepository.findOne({
+          where: {
+            userId,
+            insightText: pattern,
+            createdAt: MoreThanOrEqual(today),
+          },
+        });
+
+        if (!existing) {
+          const saved = await this.moodInsightRepository.save({
+            userId,
+            insightType: 'ai_generated',
+            insightText: pattern,
+            category: 'AI_PATTERN',
+            confidenceScore: 0.85,
+            dataPoints: entries.length,
+            isRead: false,
+          });
+          newInsights.push(this.transformToMoodInsightResponse(saved));
+        }
+      }
+
+      // Save AI recommendations
+      for (const rec of aiAnalysis.recommendations) {
+        const existing = await this.moodInsightRepository.findOne({
+          where: {
+            userId,
+            recommendation: rec,
+            createdAt: MoreThanOrEqual(today),
+          },
+        });
+
+        if (!existing) {
+          const saved = await this.moodInsightRepository.save({
+            userId,
+            insightType: 'ai_generated',
+            insightText: 'AI Recommendation',
+            category: 'AI_RECOMMENDATION',
+            recommendation: rec,
+            confidenceScore: 0.88,
+            dataPoints: entries.length,
+            isRead: false,
+          });
+          newInsights.push(this.transformToMoodInsightResponse(saved));
+        }
+      }
+
+      // Invalidate cache
+      await this.redisService.del(`mood:insights:${userId}`);
+
+      this.logger.log(
+        `Generated ${newInsights.length} AI insights for user: ${userId}`,
+      );
+
+      return {
+        generated: newInsights.length,
+        insights: newInsights,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to generate AI insights: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
   private transformToMoodInsightResponse(
     insight: MoodInsight,
   ): MoodInsightResponseDto {
@@ -169,6 +306,9 @@ export class MoodInsightsService {
       isHelpful: insight.isHelpful,
       createdAt: insight.createdAt.toISOString(),
       updatedAt: insight.updatedAt.toISOString(),
+      recommendation: insight.recommendation,
+      category: insight.category,
+      relatedEntityId: insight.relatedEntityId,
     };
   }
 }

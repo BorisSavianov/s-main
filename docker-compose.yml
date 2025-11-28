@@ -405,6 +405,10 @@ services:
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
+      - OLLAMA_DEFAULT_MODEL=${OLLAMA_DEFAULT_MODEL}
+      - OLLAMA_TIMEOUT=${OLLAMA_TIMEOUT}
+      - OLLAMA_MAX_RETRIES=${OLLAMA_MAX_RETRIES}
     ports:
       - '4005:4005'
     depends_on:
@@ -413,6 +417,8 @@ services:
       redis:
         condition: service_healthy
       auth-service:
+        condition: service_started
+      ollama:
         condition: service_started
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4005/api/v1/health']

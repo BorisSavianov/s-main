@@ -1,5 +1,5 @@
 // src/scheduling/services/availability.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, Not, Repository } from 'typeorm';
 import { CounselorTimeSlot } from '../entities/counselor-time-slot.entity';
@@ -8,6 +8,7 @@ import {
   MeetingStatus,
 } from '../entities/scheduled-meeting.entity';
 import { SchedulingPreferences } from '../entities/scheduling-prefrences.entity';
+import { CounselorProfile } from 'apps/user-service/src/database/entities/counselor-profile.entity';
 
 export interface AvailabilitySlot {
   date: string;
@@ -20,6 +21,7 @@ export interface AvailabilitySlot {
 
 @Injectable()
 export class AvailabilityService {
+  private readonly logger = new Logger(AvailabilityService.name);
   constructor(
     @InjectRepository(CounselorTimeSlot)
     private timeSlotRepository: Repository<CounselorTimeSlot>,
@@ -27,70 +29,99 @@ export class AvailabilityService {
     private meetingRepository: Repository<ScheduledMeeting>,
     @InjectRepository(SchedulingPreferences)
     private preferencesRepository: Repository<SchedulingPreferences>,
-  ) {}
+    @InjectRepository(CounselorProfile)
+    private counselorProfileRepository: Repository<CounselorProfile>,
+  ) {
+  }
 
-  async generateAvailabilitySlots(
-    counselorId: string,
-    startDate: Date,
-    endDate: Date,
-    slotDuration: number = 60,
-  ): Promise<AvailabilitySlot[]> {
-    const timeSlots = await this.timeSlotRepository.find({
-      where: {
-        counselorId,
-        slotDate: Between(startDate, endDate),
-        isAvailable: true,
-      },
-      order: { slotDate: 'ASC', startTime: 'ASC' },
-    });
+async generateAvailabilitySlots(
+  userId: string,
+  startDate: Date,
+  endDate: Date,
+  slotDuration: number = 60,
+  searchStartTime?: string,
+  searchEndTime?: string,
+): Promise<AvailabilitySlot[]> {
 
-    const bookedMeetings = await this.meetingRepository.find({
-      where: {
-        counselorId,
-        scheduledStart: Between(startDate, endDate),
-        status: Not(In([MeetingStatus.CANCELLED, MeetingStatus.NO_SHOW])),
-      },
-    });
+  const timeSlots = await this.timeSlotRepository.find({
+    where: {
+      counselorId: userId,
+      slotDate: Between(startDate, endDate),
+      isAvailable: true,
+    },
+    order: { slotDate: 'ASC', startTime: 'ASC' },
+  });
 
-    const availabilitySlots: AvailabilitySlot[] = [];
+  const bookedMeetings = await this.meetingRepository.find({
+    where: {
+      userId,
+      scheduledStart: Between(startDate, endDate),
+      status: Not(In([MeetingStatus.CANCELLED, MeetingStatus.NO_SHOW])),
+    },
+  });
 
-    for (const timeSlot of timeSlots) {
-      const slotStart = new Date(`${timeSlot.slotDate}T${timeSlot.startTime}`);
-      const slotEnd = new Date(`${timeSlot.slotDate}T${timeSlot.endTime}`);
+  const availability: AvailabilitySlot[] = [];
 
-      // Generate slots within this time slot
-      let currentTime = new Date(slotStart);
+  for (const timeSlot of timeSlots) {
+    const dateStr = new Date(timeSlot.slotDate).toISOString().split('T')[0];
 
-      while (currentTime < slotEnd) {
-        const slotEndTime = new Date(
-          currentTime.getTime() + slotDuration * 60000,
+    const rangeStart = new Date(`${dateStr}T${timeSlot.startTime}`);
+    const rangeEnd = new Date(`${dateStr}T${timeSlot.endTime}`);
+
+    // --- SPLIT INTO MULTIPLE SLOTS BY DURATION ---
+    let current = new Date(rangeStart);
+
+    while (current < rangeEnd) {
+      const next = new Date(current.getTime() + slotDuration * 60000);
+
+      if (next > rangeEnd) break; // Do not exceed the counselor range
+
+      const slotStartIso = current.toISOString();
+      const slotEndIso = next.toISOString();
+
+      const slotStartStr = slotStartIso.split('T')[1].slice(0, 5);
+      const slotEndStr = slotEndIso.split('T')[1].slice(0, 5);
+
+      // --- Search-based filtering ---
+      if (searchStartTime && slotStartStr < searchStartTime) {
+        current = next;
+        continue;
+      }
+
+      if (searchEndTime && slotEndStr > searchEndTime) {
+        current = next;
+        continue;
+      }
+
+      // --- Check meeting conflicts ---
+      const conflict = bookedMeetings.some((m) => {
+        const mStart = new Date(m.scheduledStart);
+        const mEnd = new Date(m.scheduledEnd);
+
+        return (
+          new Date(slotStartIso) < mEnd &&
+          new Date(slotEndIso) > mStart
         );
+      });
 
-        if (slotEndTime > slotEnd) break;
-
-        // Check if this slot conflicts with any booked meeting
-        const hasConflict = bookedMeetings.some((meeting) => {
-          const meetingStart = new Date(meeting.scheduledStart);
-          const meetingEnd = new Date(meeting.scheduledEnd);
-
-          return currentTime < meetingEnd && slotEndTime > meetingStart;
-        });
-
-        availabilitySlots.push({
-          date: timeSlot.slotDate.toISOString().split('T')[0],
-          startTime: currentTime.toTimeString().substring(0, 5),
-          endTime: slotEndTime.toTimeString().substring(0, 5),
+      if (!conflict) {
+        availability.push({
+          date: dateStr,
+          startTime: slotStartStr,
+          endTime: slotEndStr,
           duration: slotDuration,
-          isAvailable: !hasConflict && !timeSlot.isBooked,
+          isAvailable: true,
           price: timeSlot.customRate,
         });
-
-        currentTime = new Date(slotEndTime);
       }
-    }
 
-    return availabilitySlots;
+      current = next;
+    }
   }
+
+  return availability;
+}
+
 
   async bulkCreateTimeSlots(
     counselorId: string,

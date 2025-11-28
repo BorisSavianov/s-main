@@ -174,7 +174,7 @@ SELECT
     'Dr. Sarah Johnson is a licensed clinical psychologist with over 8 years of experience helping individuals overcome anxiety, depression, and trauma. She specializes in cognitive behavioral therapy and trauma-informed care approaches.',
     ARRAY['English', 'Spanish']
 FROM users 
-WHERE email = 'counselor@mentalhealth.app';
+WHERE email = 'counselor@serenityspace.app';
 
 -- Set default availability for the counselor (Monday-Friday, 9 AM - 5 PM)
 INSERT INTO counselor_availability (counselor_id, day_of_week, start_time, end_time)
@@ -184,7 +184,7 @@ SELECT
     '09:00'::time,
     '17:00'::time
 FROM users 
-WHERE email = 'counselor@mentalhealth.app';
+WHERE email = 'counselor@serenityspace.app';
 
 INSERT INTO migrations (migration_name) VALUES ('007_system_config');
 

@@ -26,6 +26,7 @@ import { Roles } from 'apps/user-service/src/auth/decorators/roles.decorator';
 import { GetUser } from 'apps/user-service/src/auth/decorators/get-user.decorator';
 import { UserRole } from 'apps/user-service/src/database/entities/user.entity';
 import { SchedulingService } from '../services/scheduling.service';
+import { AvailabilityService } from '../services/availability.service';
 import { CreateMeetingDto } from '../dto/create-meeting.dto';
 import { UpdateMeetingDto } from '../dto/update-meeting.dto';
 import { SchedulingQueryDto } from '../dto/scheduling-query.dto';
@@ -36,7 +37,10 @@ import { CreateTimeSlotDto } from '../dto/create-time-slot.dto';
 @UseGuards(JwtAuthGuard)
 @Controller('scheduling')
 export class SchedulingController {
-  constructor(private readonly schedulingService: SchedulingService) {}
+  constructor(
+    private readonly schedulingService: SchedulingService,
+    private readonly availabilityService: AvailabilityService,
+  ) {}
 
   @Post('meetings')
   @ApiOperation({
@@ -345,5 +349,31 @@ export class SchedulingController {
   ) {
     await this.schedulingService.acknowledgeReminder(id, userId);
     return { message: 'Reminder acknowledged' };
+  }
+
+  @Get('availability')
+  @ApiOperation({
+    summary: 'Get counselor availability',
+    description: 'Find available slots for a counselor.',
+  })
+  @ApiQuery({ name: 'userId', required: true, type: String })
+  @ApiQuery({ name: 'startDate', required: true, type: String })
+  @ApiQuery({ name: 'endDate', required: true, type: String })
+  @ApiResponse({ status: 200, description: 'Availability slots returned' })
+  async getAvailability(
+    @Query('userId') userId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Query('startTime') startTime?: string,
+    @Query('endTime') endTime?: string,
+  ) {
+    return this.availabilityService.generateAvailabilitySlots(
+      userId,
+      new Date(startDate),
+      new Date(endDate),
+      60,
+      startTime,
+      endTime,
+    );
   }
 }

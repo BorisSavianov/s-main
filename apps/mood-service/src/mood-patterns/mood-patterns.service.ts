@@ -8,6 +8,8 @@ import {
   TrendDirection,
 } from '../database/entities/mood-pattern.entity';
 import { MoodEntry } from '../database/entities/mood-entry.entity';
+import { MoodInsight } from '../database/entities/mood-insight.entity';
+import { MoodGoal } from '../database/entities/mood-goal.entity';
 import { RedisService } from '../redis/redis.service';
 
 import {
@@ -22,6 +24,8 @@ import {
   CorrelationDto,
 } from './dto/mood-patterns.dto';
 
+import { MoodAiService } from '../mood-ai/mood-ai.service';
+
 @Injectable()
 export class MoodPatternsService {
   private readonly logger = new Logger(MoodPatternsService.name);
@@ -31,7 +35,12 @@ export class MoodPatternsService {
     private readonly moodPatternRepository: Repository<MoodPattern>,
     @InjectRepository(MoodEntry)
     private readonly moodEntryRepository: Repository<MoodEntry>,
+    @InjectRepository(MoodInsight)
+    private readonly moodInsightRepository: Repository<MoodInsight>,
+    @InjectRepository(MoodGoal)
+    private readonly moodGoalRepository: Repository<MoodGoal>,
     private readonly redisService: RedisService,
+    private readonly moodAiService: MoodAiService,
   ) {}
 
   async analyzeMoodPatterns(
@@ -64,17 +73,24 @@ export class MoodPatternsService {
     const monthlyPattern = await this.calculateMonthlyPattern(entries);
     const hourlyPattern = await this.calculateHourlyPattern(entries);
     const correlations = await this.calculateCorrelations(entries);
-    const insights = await this.generateInsights(
+    const triggerCorrelations = await this.calculateTriggerCorrelations(entries);
+    
+    const allCorrelations = [...correlations, ...triggerCorrelations].sort(
+      (a, b) => Math.abs(b.correlation) - Math.abs(a.correlation),
+    );
+
+    const insights = await this.generateAndSaveInsights(
+      userId,
       entries,
       weeklyPattern,
-      correlations,
+      allCorrelations,
     );
 
     const analysis: PatternAnalysisDto = {
       weeklyPattern,
       monthlyPattern,
       hourlyPattern,
-      correlations,
+      correlations: allCorrelations,
       insights,
     };
 
@@ -489,6 +505,58 @@ export class MoodPatternsService {
     );
   }
 
+  private async calculateTriggerCorrelations(
+    entries: MoodEntry[],
+  ): Promise<CorrelationDto[]> {
+    const correlations: CorrelationDto[] = [];
+    const triggerMap = new Map<string, { ratings: number[]; count: number }>();
+
+    // Collect ratings for each trigger
+    entries.forEach((entry) => {
+      if (entry.triggers && entry.triggers.length > 0) {
+        entry.triggers.forEach((trigger) => {
+          if (!triggerMap.has(trigger)) {
+            triggerMap.set(trigger, { ratings: [], count: 0 });
+          }
+          const data = triggerMap.get(trigger)!;
+          data.ratings.push(entry.rating);
+          data.count++;
+        });
+      }
+    });
+
+    // Calculate correlation for each trigger
+    // We'll use point-biserial correlation (binary variable: trigger present/absent)
+    // But for simplicity and robustness with small data, we'll compare average mood with trigger vs overall average
+    const overallAvg =
+      entries.reduce((sum, e) => sum + e.rating, 0) / entries.length;
+
+    for (const [trigger, data] of triggerMap.entries()) {
+      if (data.count >= 3) {
+        // Minimum 3 occurrences
+        const triggerAvg =
+          data.ratings.reduce((sum, r) => sum + r, 0) / data.count;
+        const diff = triggerAvg - overallAvg;
+
+        // Normalize diff to -1 to 1 range roughly (assuming 1-5 scale, max diff is 4)
+        const correlation = Math.max(Math.min(diff / 2, 1), -1);
+
+        correlations.push({
+          factor: trigger,
+          correlation: Math.round(correlation * 100) / 100,
+          strength: this.getCorrelationStrength(correlation),
+          description: `Mood is ${
+            diff > 0 ? 'higher' : 'lower'
+          } when '${trigger}' is present`,
+        });
+      }
+    }
+
+    return correlations.sort(
+      (a, b) => Math.abs(b.correlation) - Math.abs(a.correlation),
+    );
+  }
+
   private calculatePearsonCorrelation(x: number[], y: number[]): number {
     const n = x.length;
     if (n !== y.length || n === 0) return 0;
@@ -545,12 +613,19 @@ export class MoodPatternsService {
     return TrendDirection.STABLE;
   }
 
-  private async generateInsights(
+  private async generateAndSaveInsights(
+    userId: string,
     entries: MoodEntry[],
     weeklyPattern: WeeklyPatternDto,
     correlations: CorrelationDto[],
   ): Promise<string[]> {
     const insights: string[] = [];
+    const newInsightsToSave: {
+      text: string;
+      category: string;
+      recommendation?: string;
+      relatedEntityId?: string;
+    }[] = [];
 
     // Weekly pattern insights
     const bestDay =
@@ -567,9 +642,13 @@ export class MoodPatternsService {
       ];
 
     if (bestDay && worstDay) {
-      insights.push(
-        `Your mood tends to be highest on ${bestDay} and lowest on ${worstDay}`,
-      );
+      const text = `Your mood tends to be highest on ${bestDay} and lowest on ${worstDay}`;
+      insights.push(text);
+      newInsightsToSave.push({
+        text,
+        category: 'PATTERN',
+        recommendation: `Plan your most challenging tasks for ${bestDay} when you feel best.`,
+      });
     }
 
     // Correlation insights
@@ -578,16 +657,146 @@ export class MoodPatternsService {
     );
     strongCorrelations.forEach((corr) => {
       insights.push(corr.description);
+      newInsightsToSave.push({
+        text: corr.description,
+        category: 'CORRELATION',
+        recommendation: this.getRecommendationForCorrelation(corr),
+      });
     });
 
     // Trend insights
     if (weeklyPattern.trend === TrendDirection.IMPROVING) {
-      insights.push('Your mood shows an improving trend throughout the week');
+      const text = 'Your mood shows an improving trend throughout the week';
+      insights.push(text);
+      newInsightsToSave.push({
+        text,
+        category: 'PATTERN',
+        recommendation: 'Keep doing what you are doing! Your routine is working.',
+      });
     } else if (weeklyPattern.trend === TrendDirection.DECLINING) {
-      insights.push('Your mood tends to decline as the week progresses');
+      const text = 'Your mood tends to decline as the week progresses';
+      insights.push(text);
+      newInsightsToSave.push({
+        text,
+        category: 'PATTERN',
+        recommendation: 'Try to schedule some self-care activities for the end of the week.',
+      });
+    }
+
+    // Achievement insights (Streaks)
+    const goals = await this.moodGoalRepository.find({
+      where: { userId, isActive: true },
+    });
+
+    goals.forEach((goal) => {
+      if (goal.currentStreak >= 3) {
+        const text = `You're on a ${goal.currentStreak}-day streak for your '${goal.goalType.replace(
+          '_',
+          ' ',
+        )}' goal!`;
+        insights.push(text);
+        newInsightsToSave.push({
+          text,
+          category: 'ACHIEVEMENT',
+          recommendation: 'Keep up the momentum! Consistency is key.',
+          relatedEntityId: goal.id,
+        });
+      }
+    });
+
+    // AI-Driven Deep Analysis
+    try {
+      if (entries.length >= 5) {
+        this.logger.log('Generating AI-driven insights...');
+        const aiAnalysis = await this.moodAiService.generateDeepAnalysis(
+          userId,
+          entries,
+        );
+
+        // Add AI insights
+        aiAnalysis.insights.forEach((insight) => {
+          insights.push(insight);
+          newInsightsToSave.push({
+            text: insight,
+            category: 'AI_DEEP_DIVE',
+            recommendation: undefined,
+          });
+        });
+
+        // Add AI patterns
+        aiAnalysis.patterns.forEach((pattern) => {
+          insights.push(pattern);
+          newInsightsToSave.push({
+            text: pattern,
+            category: 'AI_PATTERN',
+            recommendation: undefined,
+          });
+        });
+
+        // Add AI recommendations
+        aiAnalysis.recommendations.forEach((rec) => {
+          newInsightsToSave.push({
+            text: 'AI Recommendation',
+            category: 'AI_RECOMMENDATION',
+            recommendation: rec,
+          });
+        });
+
+        this.logger.log(
+          `Generated ${aiAnalysis.insights.length} AI insights, ${aiAnalysis.patterns.length} patterns, ${aiAnalysis.recommendations.length} recommendations`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to generate AI insights: ${error.message}`,
+        error.stack,
+      );
+      // Continue without AI insights if it fails
+    }
+
+    // Save all insights to database
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (const item of newInsightsToSave) {
+      const existing = await this.moodInsightRepository.findOne({
+        where: {
+          userId,
+          insightText: item.text,
+          createdAt: MoreThanOrEqual(today),
+        },
+      });
+
+      if (!existing) {
+        await this.moodInsightRepository.save({
+          userId,
+          insightType: 'automated_analysis',
+          insightText: item.text,
+          category: item.category,
+          recommendation: item.recommendation,
+          relatedEntityId: (item as any).relatedEntityId,
+          isRead: false,
+          confidenceScore: 0.85,
+        });
+      }
     }
 
     return insights;
+  }
+
+  private getRecommendationForCorrelation(corr: CorrelationDto): string {
+    if (corr.factor === 'sleep_hours') {
+      return corr.correlation > 0
+        ? 'Prioritize getting 7-8 hours of sleep to maintain positive mood.'
+        : 'Check if oversleeping is making you feel groggy.';
+    }
+    if (corr.factor === 'exercise_minutes') {
+      return 'Regular exercise seems to boost your mood. Try to move for at least 30 mins daily.';
+    }
+    if (corr.factor === 'stress_level') {
+      return 'High stress impacts your mood. Consider mindfulness or breaks during work.';
+    }
+    return `Pay attention to how ${corr.factor} affects your well-being.`;
   }
 
   private async generateWeeklyPatterns(

@@ -27,6 +27,8 @@ import {
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 
+import { MoodAiModule } from './mood-ai/mood-ai.module';
+
 @Module({
   imports: [
     // Configuration
@@ -105,6 +107,7 @@ import { PassportModule } from '@nestjs/passport';
     MoodGoalsModule,
     MoodInsightsModule,
     MoodTriggersModule,
+    MoodAiModule,
   ],
   controllers: [],
   providers: [PrometheusController],

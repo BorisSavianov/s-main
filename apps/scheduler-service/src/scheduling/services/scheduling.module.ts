@@ -17,6 +17,7 @@ import { CounselorTimeSlot } from '../entities/counselor-time-slot.entity';
 import { MeetingReminder } from '../entities/meeting-reminder.entity';
 import { MeetingParticipant } from '../entities/meeting-participant.entity';
 import { SchedulingPreferences } from '../entities/scheduling-prefrences.entity';
+import { CounselorProfile } from 'apps/user-service/src/database/entities/counselor-profile.entity';
 
 import { MeetingEventListener } from '../listeners/meeting-event-listener';
 import { MeetingAccessGuard } from '../guards/meeting-access.guard';
@@ -31,6 +32,7 @@ import { HttpModule, HttpService } from '@nestjs/axios';
       MeetingReminder,
       MeetingParticipant,
       SchedulingPreferences,
+      CounselorProfile,
     ]),
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),

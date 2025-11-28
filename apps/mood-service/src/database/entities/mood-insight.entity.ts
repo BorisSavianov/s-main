@@ -21,6 +21,19 @@ export class MoodInsight {
   @Column('text', { name: 'insight_text' })
   insightText: string;
 
+  @Column({ nullable: true })
+  recommendation?: string;
+
+  @Column({
+    type: 'enum',
+    enum: ['PATTERN', 'CORRELATION', 'ACHIEVEMENT'],
+    default: 'PATTERN',
+  })
+  category: string;
+
+  @Column({ name: 'related_entity_id', nullable: true })
+  relatedEntityId?: string;
+
   @Column('decimal', {
     name: 'confidence_score',
     precision: 3,
