@@ -4,10 +4,11 @@ import {
   IsNotEmpty,
   IsOptional,
   IsEnum,
-  IsDateString,
+  IsISO8601,
   IsNumber,
   IsBoolean,
   IsString,
+  IsDateString,
 } from 'class-validator';
 import {
   MeetingType,
@@ -46,7 +47,7 @@ export class CreateMeetingDto {
     example: '2025-08-10T10:00:00Z',
   })
   @IsNotEmpty()
-  @IsDateString()
+  @IsISO8601()
   scheduledStart: string;
 
   @ApiProperty({
@@ -54,7 +55,7 @@ export class CreateMeetingDto {
     example: '2025-08-10T11:00:00Z',
   })
   @IsNotEmpty()
-  @IsDateString()
+  @IsISO8601()
   scheduledEnd: string;
 
   @ApiPropertyOptional({ description: 'Duration in minutes', example: 60 })

@@ -531,31 +531,37 @@ export class SchedulingService {
     endTime: Date,
     excludeMeetingId?: string,
   ): Promise<void> {
-    const availableSlot = await this.timeSlotRepository.findOne({
+    const dateStr = startTime.toISOString().split('T')[0];
+
+    // Find ALL slots for this counselor on this date
+    const slots = await this.timeSlotRepository.find({
       where: {
         counselorId,
-        slotDate: startTime.toISOString().split('T')[0] as any,
+        slotDate: dateStr as any,
         isAvailable: true,
-        isBooked: false,
       },
     });
 
-    if (!availableSlot) {
+    if (!slots || slots.length === 0) {
       throw new ConflictException(
-        'No available time slot found for the requested time',
+        'No available time slot found for the requested date',
       );
     }
 
-    // Check if requested time fits within the available slot
-    const requestedStartTime = startTime.toTimeString().slice(0, 5);
-    const requestedEndTime = endTime.toTimeString().slice(0, 5);
+    const requestedStartTime = startTime.toISOString().split('T')[1].slice(0, 5);
+    const requestedEndTime = endTime.toISOString().split('T')[1].slice(0, 5);
 
-    if (
-      requestedStartTime < availableSlot.startTime ||
-      requestedEndTime > availableSlot.endTime
-    ) {
+    // Find a slot that covers the requested time and is not fully booked
+    const validSlot = slots.find((slot) => {
+      const coversTime =
+        requestedStartTime >= slot.startTime && requestedEndTime <= slot.endTime;
+      const notFullyBooked = !slot.isBooked; // Assuming isBooked means fully booked
+      return coversTime && notFullyBooked;
+    });
+
+    if (!validSlot) {
       throw new ConflictException(
-        'Requested time is outside available time slot',
+        'Requested time is outside available time slot or slot is fully booked',
       );
     }
   }
