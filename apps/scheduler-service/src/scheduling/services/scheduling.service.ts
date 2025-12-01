@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
@@ -524,47 +525,54 @@ export class SchedulingService {
     await this.reminderRepository.save(reminder);
   }
 
-  // Private helper methods
-  private async validateTimeSlotAvailability(
-    counselorId: string,
-    startTime: Date,
-    endTime: Date,
-    excludeMeetingId?: string,
-  ): Promise<void> {
-    const dateStr = startTime.toISOString().split('T')[0];
+ private async validateTimeSlotAvailability(
+  counselorId: string,
+  startTime: Date,
+  endTime: Date,
+  excludeMeetingId?: string,
+): Promise<void> {
+  const dateStr = startTime.toISOString().split('T')[0];
 
-    // Find ALL slots for this counselor on this date
-    const slots = await this.timeSlotRepository.find({
-      where: {
-        counselorId,
-        slotDate: dateStr as any,
-        isAvailable: true,
-      },
-    });
+  const slots = await this.timeSlotRepository.find({
+    where: {
+      counselorId,
+      slotDate: dateStr as any,
+      isAvailable: true,
+    },
+  });
 
-    if (!slots || slots.length === 0) {
-      throw new ConflictException(
-        'No available time slot found for the requested date',
-      );
-    }
-
-    const requestedStartTime = startTime.toISOString().split('T')[1].slice(0, 5);
-    const requestedEndTime = endTime.toISOString().split('T')[1].slice(0, 5);
-
-    // Find a slot that covers the requested time and is not fully booked
-    const validSlot = slots.find((slot) => {
-      const coversTime =
-        requestedStartTime >= slot.startTime && requestedEndTime <= slot.endTime;
-      const notFullyBooked = !slot.isBooked; // Assuming isBooked means fully booked
-      return coversTime && notFullyBooked;
-    });
-
-    if (!validSlot) {
-      throw new ConflictException(
-        'Requested time is outside available time slot or slot is fully booked',
-      );
-    }
+  if (!slots || slots.length === 0) {
+    throw new ConflictException('No available time slot found for the requested date');
   }
+
+  const toMinutes = (time: string) => {
+    const [h, m] = time.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const requestedStartMin = toMinutes(startTime.toISOString().split('T')[1].slice(0, 5));
+  const requestedEndMin = toMinutes(endTime.toISOString().split('T')[1].slice(0, 5));
+
+  const validSlot = slots.find((slot) => {
+    const slotStartMin = toMinutes(slot.startTime);
+    const slotEndMin = toMinutes(slot.endTime);
+
+    const coversTime =
+      requestedStartMin >= slotStartMin &&
+      requestedEndMin <= slotEndMin;
+
+    const notFullyBooked = !slot.isBooked;
+
+    return coversTime && notFullyBooked;
+  });
+
+  if (!validSlot) {
+    throw new ConflictException(
+      'Requested time is outside available time slot or slot is fully booked',
+    );
+  }
+}
+
 
   private async checkSchedulingConflicts(
     counselorId: string,
