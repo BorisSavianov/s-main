@@ -111,7 +111,7 @@ export class SchedulingService {
     }
 
     // Generate meeting room details if needed
-    if (meeting.meetingType === MeetingType.VIDEO_CALL) {
+    if (meeting.meetingType === MeetingType.VIDEO_CALL || meeting.meetingType === MeetingType.AUDIO_ONLY) {
       await this.generateMeetingRoomDetails(savedMeeting.id);
     }
 
@@ -605,7 +605,7 @@ export class SchedulingService {
   private async generateMeetingRoomDetails(meetingId: string): Promise<void> {
     // Generate unique meeting room details
     const roomId = `room_${meetingId.slice(-8)}`;
-    const roomUrl = `https://meet.example.com/room/${roomId}`;
+    const roomUrl = `http://localhost:3000/room/${roomId}`;
     const roomPassword = Math.random().toString(36).slice(-8);
 
     await this.meetingRepository.update(meetingId, {
