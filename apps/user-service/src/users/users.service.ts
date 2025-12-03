@@ -19,12 +19,12 @@ import {
   UserSearchDto,
   PaginatedUsersResponseDto,
 } from './dto/users.dto';
-import { SessionService } from 'apps/auth-service/src/auth/session.service';
+
 
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
-  private readonly sessionService: SessionService;
+
 
   constructor(
     @InjectRepository(User)
@@ -297,24 +297,37 @@ export class UsersService {
     }
   }
 
-    async checkSession(userId: string, sessionId: string) {
-  
-      // Verify session is still valid
-      const session = await this.sessionService.getSession(sessionId);
-      if (!session || !session.isActive) {
+  async checkSession(userId: string, sessionId: string) {
+    // Verify session is still valid
+    // Try to get session from Redis first
+    const sessionData = await this.redisService.getSession<any>(sessionId);
+
+    if (sessionData) {
+      if (!sessionData.isActive || new Date(sessionData.expiresAt) <= new Date()) {
+        await this.redisService.deleteSession(sessionId);
         throw new UnauthorizedException('Session expired or invalid');
       }
-  
-      const user = await this.userRepository.findOne({
-        where: { id: userId },
+    } else {
+      // Check DB if not in Redis
+      const session = await this.sessionRepository.findOne({
+        where: { id: sessionId, isActive: true },
       });
-      // Check if user is still active
-      if (!user?.isActive) {
-        throw new UnauthorizedException('Account deactivated');
+
+      if (!session || new Date(session.expiresAt) <= new Date()) {
+        throw new UnauthorizedException('Session expired or invalid');
       }
-  
-      return true;
-    };
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+    // Check if user is still active
+    if (!user?.isActive) {
+      throw new UnauthorizedException('Account deactivated');
+    }
+
+    return true;
+  }
     
   
 

@@ -89,7 +89,7 @@ export class WebSearchController {
   @Get('health')
   @ApiOperation({
     summary: 'Check web search service health',
-    description: 'Verify SearxNG service availability',
+    description: 'Verify Google Custom Search API availability',
   })
   @ApiResponse({
     status: 200,
@@ -102,7 +102,7 @@ export class WebSearchController {
       success: true,
       data: {
         status: isHealthy ? 'healthy' : 'unhealthy',
-        service: 'SearxNG',
+        service: 'Google Custom Search API',
       },
       timestamp: new Date().toISOString(),
     };

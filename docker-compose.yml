@@ -278,6 +278,8 @@ services:
       - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL}
       - ELASTICSEARCH_URL=${ELASTICSEARCH_URL}
       - SEARXNG_SECRET=${SEARXNG_SECRET}
+      - GOOGLE_CUSTOM_SEARCH_API_KEY=${GOOGLE_CUSTOM_SEARCH_API_KEY}
+      - GOOGLE_CUSTOM_SEARCH_ENGINE_ID=${GOOGLE_CUSTOM_SEARCH_ENGINE_ID}
       - WEB_SEARCH_ENABLED=${WEB_SEARCH_ENABLED}
       - WEB_SEARCH_MAX_RESULTS=${WEB_SEARCH_MAX_RESULTS}
       - WEB_SEARCH_CACHE_ENABLED=${WEB_SEARCH_CACHE_ENABLED}
@@ -303,8 +305,6 @@ services:
         condition: service_started
       ollama:
         condition: service_started
-      whoogle-search:
-        condition: service_healthy
 
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4002/api/v1/health']

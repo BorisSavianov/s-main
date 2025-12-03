@@ -7,6 +7,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { WebSearchService } from './web-search.service';
 import { WebSearchController } from './web-search.controller';
 import { WebScraperService } from './web-scraper.service';
+import { GoogleSearchService } from './google-search.service';
 import { ScraperAIIntegrationService } from './scraper-ai-integration.service';
 import { AuthCoreModule } from '../../../auth-service/src/auth/auth-core.module';
 import { EnhancedAIService } from '../ai/web-ai.service';
@@ -75,12 +76,18 @@ import { WebScraperController } from './web-scraper.controller';
   ],
   controllers: [WebSearchController, WebScraperController],
   providers: [
+    GoogleSearchService,
     WebSearchService,
     WebScraperService,
     ScraperAIIntegrationService,
     EnhancedAIService,
     AIService,
   ],
-  exports: [WebSearchService, WebScraperService, ScraperAIIntegrationService],
+  exports: [
+    GoogleSearchService,
+    WebSearchService,
+    WebScraperService,
+    ScraperAIIntegrationService,
+  ],
 })
 export class WebSearchModule {}

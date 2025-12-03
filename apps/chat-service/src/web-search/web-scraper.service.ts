@@ -6,6 +6,7 @@ import { firstValueFrom } from 'rxjs';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import * as cheerio from 'cheerio';
+import { GoogleSearchService } from './google-search.service';
 
 /**
  * Normalized search result matching required schema
@@ -32,23 +33,6 @@ export interface NormalizedSearchResult {
     paragraphs: string[];
     headings: string[];
   };
-}
-
-/**
- * Raw Whoogle response structure (as received from API)
- */
-interface WhoogleRawResult {
-  title?: string;
-  text?: string;
-  content?: string;
-  href?: string;
-  url?: string;
-}
-
-interface WhoogleRawResponse {
-  query: string;
-  results: WhoogleRawResult[];
-  search_type?: string;
 }
 
 /**
@@ -115,7 +99,6 @@ export interface EnhancedContext {
 @Injectable()
 export class WebScraperService {
   private readonly logger = new Logger(WebScraperService.name);
-  private readonly searxngBaseUrl: string;
   private readonly maxResults: number;
   private readonly cacheEnabled: boolean;
   private readonly cacheTTL: number;
@@ -141,11 +124,8 @@ export class WebScraperService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     @InjectRedis() private readonly redis: Redis,
+    private readonly googleSearchService: GoogleSearchService,
   ) {
-    this.searxngBaseUrl = this.configService.get<string>(
-      'WHOOGLE_URL',
-      'http://whoogle-search:5000',
-    );
     this.maxResults = this.configService.get<number>(
       'WEB_SCRAPER_MAX_RESULTS',
       10,
@@ -195,13 +175,14 @@ export class WebScraperService {
         }
       }
 
-      // Perform search via Whoogle
-      const rawResponse = await this.performWhoogleSearch(query);
+      // Perform search via Google Custom Search API
+      const googleResponse = await this.googleSearchService.search(query, {
+        num: this.maxResults,
+      });
 
-      // Normalize and parse results
-      const normalizedResults = await this.normalizeWhoogleResults(
-        rawResponse,
-        query,
+      // Convert Google results to normalized format
+      const normalizedResults = this.convertGoogleToNormalized(
+        googleResponse.results,
       );
 
       // Filter and deduplicate
@@ -217,14 +198,14 @@ export class WebScraperService {
       // Calculate processing stats
       const stats = this.calculateEnhancedStats(
         filteredResults,
-        normalizedResults.length,
+        googleResponse.results.length,
       );
 
       const response: NormalizedScraperResponse = {
         query,
         results: filteredResults.slice(0, this.maxResults),
         search_type: 'web',
-        totalResults: filteredResults.length,
+        totalResults: googleResponse.totalResults,
         scrapingTime: Date.now() - startTime,
         processingStats: stats,
       };
@@ -286,115 +267,20 @@ export class WebScraperService {
   }
 
   /**
-   * Perform Whoogle search with proper error handling
+   * Convert Google search results to normalized format
    */
-  private async performWhoogleSearch(
-    query: string,
-  ): Promise<WhoogleRawResponse> {
-    try {
-      this.logger.debug(`Performing Whoogle search for: ${query}`);
-
-      const response = await firstValueFrom(
-        this.httpService.get(`${this.searxngBaseUrl}/search`, {
-          params: {
-            q: query,
-            format: 'json',
-          },
-          timeout: 10000,
-          headers: {
-            'User-Agent': 'NestJS WebSearchService/2.0',
-            'Accept': 'application/json',
-          },
-        }),
-      );
-
-      const data = response.data as any;
-
-      // Validate response structure
-      if (!data || !data.results || !Array.isArray(data.results)) {
-        this.logger.warn('Invalid Whoogle response format');
-        return {
-          query,
-          results: [],
-          search_type: 'web',
-        };
-      }
-
-      return {
-        query: data.query || query,
-        results: data.results,
-        search_type: data.search_type || 'web',
-      };
-    } catch (error) {
-      this.logger.error(`Whoogle search failed: ${error.message}`);
-
-      if ((error as any).code === 'ECONNREFUSED') {
-        this.logger.warn(
-          'Whoogle service unavailable, returning empty results',
-        );
-        return {
-          query,
-          results: [],
-          search_type: 'web',
-        };
-      }
-
-      throw error;
-    }
+  private convertGoogleToNormalized(
+    googleResults: any[],
+  ): NormalizedSearchResult[] {
+    return googleResults.map((result) => ({
+      title: result.title,
+      url: result.url,
+      description: result.description,
+      snippet: result.snippet,
+      relevanceScore: result.relevanceScore,
+      metadata: result.metadata,
+    }));
   }
-
-  /**
-   * Normalize raw Whoogle results into clean, consistent format
-   */
-  private async normalizeWhoogleResults(
-    rawResponse: WhoogleRawResponse,
-    query: string,
-  ): Promise<NormalizedSearchResult[]> {
-    const queryTerms = this.extractQueryTerms(query);
-    const results: NormalizedSearchResult[] = [];
-
-    for (const raw of rawResponse.results) {
-      try {
-        // Whoogle provides structured data with title, url, and content/text
-        const title = raw.title || 'Untitled';
-        const url = raw.url || raw.href || '';
-        const description = raw.content || raw.text || 'No description available';
-
-        // Skip if essential fields missing
-        if (!url || !title) {
-          this.logger.warn('Skipping result with missing URL or title');
-          continue;
-        }
-
-        // Canonicalize URL
-        const canonicalUrl = this.canonicalizeUrl(url);
-
-        // Calculate relevance score
-        const relevanceScore = this.calculateRelevanceScore(
-          title,
-          description,
-          queryTerms,
-        );
-
-        // Extract metadata
-        const metadata = this.extractEnhancedMetadata(canonicalUrl);
-
-        results.push({
-          title: this.cleanText(title),
-          url: canonicalUrl,
-          description: this.cleanText(description),
-          snippet: this.cleanText(description.substring(0, 200)),
-          relevanceScore,
-          metadata,
-        });
-      } catch (error) {
-        this.logger.warn(`Failed to normalize result: ${error.message}`);
-      }
-    }
-
-    return results;
-  }
-
 
 
   /**
@@ -997,16 +883,6 @@ export class WebScraperService {
    * Health check for scraper service
    */
   async healthCheck(): Promise<boolean> {
-    try {
-      const response = await firstValueFrom(
-        this.httpService.get(`${this.searxngBaseUrl}/`, {
-          timeout: 5000,
-        }),
-      );
-      return response.status === 200;
-    } catch (error) {
-      this.logger.error(`Scraper health check failed: ${error.message}`);
-      return false;
-    }
+    return await this.googleSearchService.healthCheck();
   }
 }

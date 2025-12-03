@@ -5,6 +5,7 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
+import { GoogleSearchService } from './google-search.service';
 
 interface SearchResult {
   title: string;
@@ -24,7 +25,6 @@ export interface SearchResponse {
 @Injectable()
 export class WebSearchService {
   private readonly logger = new Logger(WebSearchService.name);
-  private readonly whoogleBaseUrl: string;
   private readonly maxResults: number;
   private readonly cacheEnabled: boolean;
   private readonly cacheTTL: number;
@@ -33,11 +33,8 @@ export class WebSearchService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     @InjectRedis() private readonly redis: Redis,
+    private readonly googleSearchService: GoogleSearchService,
   ) {
-    this.whoogleBaseUrl = this.configService.get<string>(
-      'WHOOGLE_URL',
-      'http://searxng:8080',
-    );
     this.maxResults = this.configService.get<number>(
       'WEB_SEARCH_MAX_RESULTS',
       5,
@@ -53,7 +50,7 @@ export class WebSearchService {
   }
 
   /**
-   * Perform web search using SearxNG
+   * Perform web search using Google Custom Search API
    */
   async search(query: string, userId: string): Promise<SearchResponse> {
     const startTime = Date.now();
@@ -68,13 +65,24 @@ export class WebSearchService {
         }
       }
 
-      // Perform search
-      const results = await this.performWhoogleSearch(query);
+      // Perform search using Google Custom Search
+      const googleResults = await this.googleSearchService.search(query, {
+        num: this.maxResults,
+      });
+
+      // Transform Google results to legacy format
+      const results: SearchResult[] = googleResults.results.map((result) => ({
+        title: result.title,
+        url: result.url,
+        content: result.description,
+        score: result.relevanceScore || 0.8,
+        publishedDate: result.metadata.publishDate,
+      }));
 
       const response: SearchResponse = {
         query,
-        results: results.slice(0, this.maxResults),
-        totalResults: results.length,
+        results,
+        totalResults: googleResults.totalResults,
         searchTime: Date.now() - startTime,
       };
 
@@ -89,6 +97,12 @@ export class WebSearchService {
       return response;
     } catch (error) {
       this.logger.error(`Search failed for query "${query}": ${error.message}`);
+      
+      // If it's already an HttpException, rethrow it
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      
       throw new HttpException(
         'Web search service temporarily unavailable',
         HttpStatus.SERVICE_UNAVAILABLE,
@@ -167,54 +181,6 @@ export class WebSearchService {
     return query;
   }
 
-  /**
-   * Perform actual SearxNG search
-   */
-  private async performWhoogleSearch(query: string): Promise<SearchResult[]> {
-    try {
-      this.logger.debug(`Whoogle searching for: ${query}`);
-
-      const response = await firstValueFrom(
-        this.httpService.get(`${this.whoogleBaseUrl}/search`, {
-          params: {
-            q: query,
-            format: 'json',
-          },
-          timeout: 10000,
-          headers: {
-            'User-Agent': 'NestJS WebSearchService/1.0',
-          },
-        }),
-      );
-
-      const data = response.data;
-
-      if (!data || !data.results || !Array.isArray(data.results)) {
-        this.logger.warn(`Invalid Whoogle response format`);
-        return [];
-      }
-
-      // Transform Whoogle response structure
-      return data.results.map((result: any, index: number) => ({
-        title: result.text || 'Untitled',
-        url: result.href || '',
-        content: result.text || '',
-        score: 1 - index * 0.1, // simple relevance fallback
-        publishedDate: result.publishedDate || null,
-      }));
-    } catch (error) {
-      this.logger.error(`Whoogle search failed: ${error.message}`);
-
-      if ((error as any).code === 'ECONNREFUSED') {
-        this.logger.warn(
-          'Whoogle service unavailable, returning empty results',
-        );
-        return [];
-      }
-
-      throw error;
-    }
-  }
 
   /**
    * Cache search results
@@ -303,23 +269,9 @@ export class WebSearchService {
   }
 
   /**
-   * Health check for SearxNG service
+   * Health check for Google Custom Search API
    */
   async healthCheck(): Promise<boolean> {
-    try {
-      const response = await firstValueFrom(
-        this.httpService.get(`${this.whoogleBaseUrl}/`, {
-          timeout: 5000,
-          headers: {
-            'X-Forwarded-For': '172.20.0.1',
-            'X-Real-IP': '172.20.0.1',
-          },
-        }),
-      );
-      return response.status === 200;
-    } catch (error) {
-      this.logger.error(`SearxNG health check failed: ${error.message}`);
-      return false;
-    }
+    return await this.googleSearchService.healthCheck();
   }
 }

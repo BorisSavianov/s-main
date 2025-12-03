@@ -42,9 +42,9 @@ export class WebScraperController {
   @Post('scrape')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Scrape and process Whoogle JSON search results (Enhanced)',
+    summary: 'Scrape and process Google api JSON search results (Enhanced)',
     description:
-      'Perform web search via Whoogle, extract structured data, and fetch full HTML content from result pages',
+      'Perform web search via Google api, extract structured data, and fetch full HTML content from result pages',
   })
   @ApiBody({ type: ScrapeQueryDto })
   @ApiResponse({
@@ -201,7 +201,7 @@ export class WebScraperController {
   @Get('health')
   @ApiOperation({
     summary: 'Check web scraper service health',
-    description: 'Verify scraper and Whoogle service availability',
+    description: 'Verify scraper and Google Custom Search API availability',
   })
   async healthCheck() {
     const isHealthy = await this.webScraperService.healthCheck();
@@ -210,7 +210,7 @@ export class WebScraperController {
       success: true,
       data: {
         status: isHealthy ? 'healthy' : 'unhealthy',
-        service: 'Enhanced Whoogle Web Scraper with HTML Extraction',
+        service: 'Enhanced Google Custom Search with HTML Extraction',
         features: {
           htmlFetchEnabled: true,
           contentExtraction: true,
