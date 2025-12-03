@@ -12,6 +12,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import {
@@ -298,4 +299,37 @@ export class UsersController {
       timestamp: new Date().toISOString(),
     };
   }
+
+  @Get('profile/check-session')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Check if current session is still valid' })
+  @ApiResponse({ status: 200, description: 'Session is valid' })
+  @ApiResponse({ status: 401, description: 'Session expired or invalid' })
+  async checkSession(
+    @GetUser('userId') userId: string,
+    @GetUser('sessionId') sessionId: string,
+  ): Promise<ApiResponseDto<{ valid: boolean }>> {
+    // Reuse your service logic
+    try {
+      await this.usersService.checkSession(userId, sessionId);
+      return {
+      success: true,
+      message: 'Session is valid',
+      data: { valid: true },
+      timestamp: new Date().toISOString(),
+      };
+    } catch (err) {
+    if (err instanceof UnauthorizedException) {
+      return {
+        success: false,
+        message: err.message,
+        data: { valid: false },
+        timestamp: new Date().toISOString(),
+      };
+    }
+    throw err;
+    }
+  }
 }
+  

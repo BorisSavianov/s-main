@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
@@ -18,10 +19,12 @@ import {
   UserSearchDto,
   PaginatedUsersResponseDto,
 } from './dto/users.dto';
+import { SessionService } from 'apps/auth-service/src/auth/session.service';
 
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
+  private readonly sessionService: SessionService;
 
   constructor(
     @InjectRepository(User)
@@ -293,6 +296,27 @@ export class UsersService {
       await this.redisService.del(`session:${session.id}`);
     }
   }
+
+    async checkSession(userId: string, sessionId: string) {
+  
+      // Verify session is still valid
+      const session = await this.sessionService.getSession(sessionId);
+      if (!session || !session.isActive) {
+        throw new UnauthorizedException('Session expired or invalid');
+      }
+  
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+      });
+      // Check if user is still active
+      if (!user?.isActive) {
+        throw new UnauthorizedException('Account deactivated');
+      }
+  
+      return true;
+    };
+    
+  
 
   private transformToUserResponse(user: User): UserResponseDto {
     return {
