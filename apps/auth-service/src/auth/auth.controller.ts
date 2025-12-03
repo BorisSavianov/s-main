@@ -111,7 +111,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout user' })
   @ApiResponse({ status: 200, description: 'Logout successful' })
-  async logout(@Body() sessionId: string): Promise<ApiResponseDto> {
+  async logout(@GetUser('sessionId') sessionId: string): Promise<ApiResponseDto> {
     await this.authService.logout(sessionId);
 
     return {
@@ -268,7 +268,7 @@ export class AuthController {
     @Request() req: any,
     @Ip() ip: string,
     @Headers('user-agent') userAgent: string,
-  ): Promise<ApiResponseDto<LoginResponseDto>> {
+  ) {
     const result = await this.authService.handleOAuthCallback(
       req.user,
       'google',
@@ -276,12 +276,11 @@ export class AuthController {
       userAgent,
     );
 
-    return {
-      success: true,
-      message: 'Google authentication successful',
-      data: result,
-      timestamp: new Date().toISOString(),
-    };
+    // Redirect to frontend with tokens in URL params
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const callbackUrl = `${frontendUrl}/auth/callback?accessToken=${encodeURIComponent(result.accessToken)}&refreshToken=${encodeURIComponent(result.refreshToken)}`;
+    
+    return req.res.redirect(callbackUrl);
   }
 
   @Get('facebook')
@@ -298,7 +297,7 @@ export class AuthController {
     @Request() req: any,
     @Ip() ip: string,
     @Headers('user-agent') userAgent: string,
-  ): Promise<ApiResponseDto<LoginResponseDto>> {
+  ) {
     const result = await this.authService.handleOAuthCallback(
       req.user,
       'facebook',
@@ -306,11 +305,10 @@ export class AuthController {
       userAgent,
     );
 
-    return {
-      success: true,
-      message: 'Facebook authentication successful',
-      data: result,
-      timestamp: new Date().toISOString(),
-    };
+    // Redirect to frontend with tokens in URL params
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const callbackUrl = `${frontendUrl}/auth/callback?accessToken=${encodeURIComponent(result.accessToken)}&refreshToken=${encodeURIComponent(result.refreshToken)}`;
+    
+    return req.res.redirect(callbackUrl);
   }
 }

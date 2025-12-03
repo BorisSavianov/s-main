@@ -309,15 +309,23 @@ export class UserService {
       lastName: user.lastName,
       role: user.role,
       phone: user.phone,
-      dateOfBirth: user.dateOfBirth?.toISOString().split('T')[0],
+      dateOfBirth: user.dateOfBirth
+        ? user.dateOfBirth instanceof Date
+          ? user.dateOfBirth.toISOString().split('T')[0]
+          : user.dateOfBirth
+        : undefined,
       gender: user.gender,
       timezone: user.timezone,
       profilePictureUrl: user.profilePictureUrl,
       isActive: user.isActive,
       isVerified: user.isVerified,
-      lastLogin: user.lastLogin?.toISOString(),
-      createdAt: user.createdAt.toISOString(),
-      updatedAt: user.updatedAt.toISOString(),
+      lastLogin: user.lastLogin
+        ? user.lastLogin instanceof Date
+          ? user.lastLogin.toISOString()
+          : user.lastLogin
+        : undefined,
+      createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : user.createdAt,
+      updatedAt: user.updatedAt instanceof Date ? user.updatedAt.toISOString() : user.updatedAt,
       counselorProfile: user.counselorProfile
         ? this.transformToCounselorProfileResponse(user.counselorProfile)
         : undefined,

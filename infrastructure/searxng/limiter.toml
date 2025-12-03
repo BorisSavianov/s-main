@@ -1,0 +1,10 @@
+# /etc/searxng/limiter.toml
+# Minimal configuration to disable bot detection
+
+[botdetection.ip_limit]
+link_token = false
+
+[botdetection.ip_lists]
+pass_ip = [
+  '0.0.0.0/0',  # Allow all IPs
+]

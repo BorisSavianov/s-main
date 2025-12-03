@@ -115,7 +115,7 @@ export interface EnhancedContext {
 @Injectable()
 export class WebScraperService {
   private readonly logger = new Logger(WebScraperService.name);
-  private readonly whoogleBaseUrl: string;
+  private readonly searxngBaseUrl: string;
   private readonly maxResults: number;
   private readonly cacheEnabled: boolean;
   private readonly cacheTTL: number;
@@ -142,9 +142,9 @@ export class WebScraperService {
     private readonly httpService: HttpService,
     @InjectRedis() private readonly redis: Redis,
   ) {
-    this.whoogleBaseUrl = this.configService.get<string>(
+    this.searxngBaseUrl = this.configService.get<string>(
       'WHOOGLE_URL',
-      'http://searxng:8080',
+      'http://whoogle-search:5000',
     );
     this.maxResults = this.configService.get<number>(
       'WEB_SCRAPER_MAX_RESULTS',
@@ -295,7 +295,7 @@ export class WebScraperService {
       this.logger.debug(`Performing Whoogle search for: ${query}`);
 
       const response = await firstValueFrom(
-        this.httpService.get(`${this.whoogleBaseUrl}/search`, {
+        this.httpService.get(`${this.searxngBaseUrl}/search`, {
           params: {
             q: query,
             format: 'json',
@@ -303,6 +303,7 @@ export class WebScraperService {
           timeout: 10000,
           headers: {
             'User-Agent': 'NestJS WebSearchService/2.0',
+            'Accept': 'application/json',
           },
         }),
       );
@@ -354,10 +355,10 @@ export class WebScraperService {
 
     for (const raw of rawResponse.results) {
       try {
-        // Extract and clean fields from malformed Whoogle response
-        const title = this.extractTitle(raw);
-        const url = this.extractUrl(raw);
-        const description = this.extractDescription(raw);
+        // Whoogle provides structured data with title, url, and content/text
+        const title = raw.title || 'Untitled';
+        const url = raw.url || raw.href || '';
+        const description = raw.content || raw.text || 'No description available';
 
         // Skip if essential fields missing
         if (!url || !title) {
@@ -394,58 +395,7 @@ export class WebScraperService {
     return results;
   }
 
-  /**
-   * Extract title from malformed Whoogle result
-   */
-  private extractTitle(raw: WhoogleRawResult): string {
-    // Priority: title > text (before URL) > content (before URL)
-    if (raw.title) {
-      return raw.title.split('http')[0].trim();
-    }
 
-    if (raw.text) {
-      const match = raw.text.match(/^(.+?)\s+https?:\/\//);
-      if (match) return match[1].trim();
-      return raw.text.split('http')[0].trim();
-    }
-
-    if (raw.content) {
-      return raw.content.split('http')[0].trim();
-    }
-
-    return 'Untitled';
-  }
-
-  /**
-   * Extract URL from malformed Whoogle result
-   */
-  private extractUrl(raw: WhoogleRawResult): string {
-    // Priority: href > url > extracted from text/content
-    if (raw.href) return raw.href;
-    if (raw.url) return raw.url;
-
-    // Try to extract from text or content
-    const text = raw.text || raw.content || '';
-    const urlMatch = text.match(/https?:\/\/[^\s]+/);
-    return urlMatch ? urlMatch[0] : '';
-  }
-
-  /**
-   * Extract description from malformed Whoogle result
-   */
-  private extractDescription(raw: WhoogleRawResult): string {
-    // Priority: content (after URL) > text (after URL)
-    const textToProcess = raw.content || raw.text || '';
-
-    // Remove URL and everything before it
-    const urlPattern = /https?:\/\/[^\s]+/;
-    const parts = textToProcess.split(urlPattern);
-
-    // Get text after URL
-    const description = parts.length > 1 ? parts[1].trim() : textToProcess;
-
-    return description || 'No description available';
-  }
 
   /**
    * Canonicalize URL (remove tracking params, normalize)
@@ -1049,7 +999,7 @@ export class WebScraperService {
   async healthCheck(): Promise<boolean> {
     try {
       const response = await firstValueFrom(
-        this.httpService.get(`${this.whoogleBaseUrl}/`, {
+        this.httpService.get(`${this.searxngBaseUrl}/`, {
           timeout: 5000,
         }),
       );
