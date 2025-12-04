@@ -108,6 +108,8 @@ export class WebSocketService {
         where: { id: sessionId },
         select: [
           'id',
+          'userId',
+          'counselorId',
           'isAnonymous',
           'isActive',
           'startedAt',
@@ -121,6 +123,8 @@ export class WebSocketService {
 
       return {
         id: session.id,
+        userId: session.userId,
+        counselorId: session.counselorId,
         isAnonymous: session.isAnonymous,
         isActive: session.isActive,
         startedAt: session.startedAt,

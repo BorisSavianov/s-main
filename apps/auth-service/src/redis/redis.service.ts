@@ -84,6 +84,27 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
+  // Set operations for queue management
+  async sadd(key: string, ...members: string[]): Promise<number> {
+    return await this.redis.sAdd(key, members);
+  }
+
+  async srem(key: string, ...members: string[]): Promise<number> {
+    return await this.redis.sRem(key, members);
+  }
+
+  async smembers(key: string): Promise<string[]> {
+    return await this.redis.sMembers(key);
+  }
+
+  async scard(key: string): Promise<number> {
+    return await this.redis.sCard(key);
+  }
+
+  async sismember(key: string, member: string): Promise<boolean> {
+    return await this.redis.sIsMember(key, member);
+  }
+
   async setJson(key: string, value: any, ttl?: number): Promise<void> {
     const jsonValue = JSON.stringify(value);
     await this.set(key, jsonValue, ttl);

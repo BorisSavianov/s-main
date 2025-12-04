@@ -13,6 +13,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { OnEvent } from '@nestjs/event-emitter';
 
 import { WebSocketService } from './websocket.service';
 import { ConnectionManager } from './connection.manager';
@@ -70,10 +71,12 @@ interface ServerToClientEvents {
     messageIds: string[];
     readBy: string;
   }) => void;
-  sessionEnded: (data: { sessionId: string; reason: string }) => void;
+  sessionEnded: (data: { sessionId: string; reason: string; endedBy?: string }) => void;
+  chatSessionEnded: (data: { sessionId: string; reason: string; endedBy?: string }) => void;
   error: (data: { code: string; message: string; details?: any }) => void;
   counselorJoined: (data: { sessionId: string; counselorId: string }) => void;
   counselorLeft: (data: { sessionId: string; counselorId: string }) => void;
+  counselorMatched: (data: { sessionId: string; message: string }) => void;
 }
 
 @WSGateway({
@@ -248,11 +251,23 @@ export class WebSocketGateway
         throw new WsException('Not a member of this session');
       }
 
+      // Determine sender type based on session info
+      const sessionInfo = await this.websocketService.getSessionInfo(sessionId);
+      let senderType = SenderType.USER;
+      
+      this.logger.debug(`Session counselor id: ${sessionInfo?.counselorId}`);
+      this.logger.debug(`User id: ${userId}`);
+
+      // If the sender is the counselor assigned to this session, mark as counselor
+      if (sessionInfo?.counselorId && userId === sessionInfo.counselorId) {
+        senderType = SenderType.COUNSELOR;
+      }
+
       // Create and save message
       const message = await this.websocketService.createMessage({
         sessionId,
         senderId: userId,
-        senderType: SenderType.USER,
+        senderType,
         content,
         contentType: contentType || 'text',
       });
@@ -270,7 +285,7 @@ export class WebSocketGateway
         // tempId: data.tempId,
       });
 
-      this.logger.debug(`Message sent in session ${sessionId}`);
+      this.logger.debug(`Message sent in session ${sessionId} by ${senderType}`);
     } catch (error) {
       this.logger.error(`Send message failed: ${error.message}`);
       client.emit('messageStatus', {
@@ -359,6 +374,44 @@ export class WebSocketGateway
       client.emit('error', {
         code: 'AI_REQUEST_FAILED',
         message: 'Failed to process AI request',
+      });
+    }
+  }
+
+  @SubscribeMessage('endCounselorSession')
+  async handleEndCounselorSession(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { sessionId: string; reason: string; endedBy: string },
+  ) {
+    try {
+      const { sessionId, reason, endedBy } = data;
+      const userId = await this.connectionManager.getUserId(client.id);
+
+      this.logger.log(`Session ${sessionId} ended by ${endedBy} (${userId}): ${reason}`);
+
+      // Notify ALL clients in the session (including the one who ended it)
+      this.server.to(sessionId).emit('sessionEnded', {
+        sessionId,
+        reason,
+        endedBy,
+      });
+
+      // Also emit chatSessionEnded for compatibility
+      this.server.to(sessionId).emit('chatSessionEnded', {
+        sessionId,
+        reason,
+        endedBy,
+      });
+
+      // End the session in the database via service
+      await this.websocketService.endSession(sessionId, reason);
+
+      this.logger.log(`All clients in session ${sessionId} notified of session end`);
+    } catch (error) {
+      this.logger.error(`End counselor session failed: ${error.message}`);
+      client.emit('error', {
+        code: 'END_SESSION_FAILED',
+        message: 'Failed to end session',
       });
     }
   }
@@ -475,4 +528,39 @@ export class WebSocketGateway
     const eventName = action === 'join' ? 'counselorJoined' : 'counselorLeft';
     this.server.to(sessionId).emit(eventName, { sessionId, counselorId });
   }
+
+  // ==================== EVENT LISTENERS ====================
+
+  /**
+   * Handle sending WebSocket messages to specific users
+   * This is triggered by internal events (e.g., counselor matched)
+   */
+  @OnEvent('websocket.send.to.user')
+  handleSendToUser(payload: {
+    userId: string;
+    event: string;
+    data: any;
+  }) {
+    try {
+      const { userId, event, data } = payload;
+      
+      // Get all socket connections for this user
+      const socketIds = this.connectionManager.getUserConnections(userId);
+      
+      if (socketIds.size === 0) {
+        this.logger.warn(`User ${userId} has no active connections for event ${event}`);
+        return;
+      }
+
+      // Send to all user's sockets
+      for (const socketId of socketIds) {
+        this.server.to(socketId).emit(event as any, data);
+      }
+      
+      this.logger.log(`Sent ${event} to user ${userId} (${socketIds.size} connections)`);
+    } catch (error) {
+      this.logger.error(`Failed to send to user: ${error.message}`);
+    }
+  }
 }
+

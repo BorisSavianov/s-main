@@ -20,6 +20,7 @@ import { ChatSession } from '../entities/chat-session.entity';
 import { ChatMessage } from '../entities/chat-message.entity';
 import { ChatSessionSummary } from '../entities/chat-session-summary.entity';
 import { MessageAttachment } from '../entities/message-attachment.entity';
+import { CounselorQueue } from '../entities/counselor-queue.entity';
 import { AiContext } from '../../ai/entities/ai-context.entity';
 
 // Processors
@@ -28,6 +29,9 @@ import { ChatProcessor } from '../processors/chat.processor';
 // Services
 import { SessionService } from './session.service';
 import { MessageService } from './message.service';
+import { CounselorQueueService } from './counselor-queue.service';
+import { FileUploadService } from './file-upload.service';
+import { FileUploadController } from './file-upload.controller';
 import { AIService } from '../../ai/ai.service';
 
 // Import guards and strategies from auth-service
@@ -53,6 +57,7 @@ import { ChatEventHandlersService } from './chat-event-handlers.listener';
       ChatMessage,
       ChatSessionSummary,
       MessageAttachment,
+      CounselorQueue,
       AiContext,
     ]),
 
@@ -167,11 +172,13 @@ import { ChatEventHandlersService } from './chat-event-handlers.listener';
 
     ConfigModule,
   ],
-  controllers: [ChatController],
+  controllers: [ChatController, FileUploadController],
   providers: [
     ChatService,
     SessionService,
     MessageService,
+    CounselorQueueService,
+    FileUploadService,
     ChatProcessor,
     AIService,
     ChatEventHandlersService,
@@ -190,6 +197,8 @@ import { ChatEventHandlersService } from './chat-event-handlers.listener';
     ChatService,
     SessionService,
     MessageService,
+    CounselorQueueService,
+    FileUploadService,
     ChatProcessor,
     AIService,
 

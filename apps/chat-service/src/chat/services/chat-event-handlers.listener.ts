@@ -491,4 +491,55 @@ You don't have to go through this alone. Please reach out for professional help.
       );
     }
   }
+
+  // ==================== COUNSELOR QUEUE EVENTS ====================
+
+  @OnEvent('counselor.queue.matched')
+  async handleCounselorMatched(event: {
+    counselorId: string;
+    sessionId: string;
+  }) {
+    try {
+      this.logger.log(
+        `Counselor ${event.counselorId} matched with session ${event.sessionId}`,
+      );
+
+      // Emit a WebSocket event to notify the counselor they've been matched
+      // The counselor's page polls for status, but we also emit real-time event
+      this.eventEmitter.emit('websocket.send.to.user', {
+        userId: event.counselorId,
+        event: 'counselorMatched',
+        data: {
+          sessionId: event.sessionId,
+          message: 'You have been matched with a user',
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to handle counselor matched event: ${error.message}`,
+      );
+    }
+  }
+
+  @OnEvent('counselor.queue.joined')
+  async handleCounselorJoined(event: { counselorId: string }) {
+    try {
+      this.logger.log(`Counselor ${event.counselorId} joined the queue`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to handle counselor joined event: ${error.message}`,
+      );
+    }
+  }
+
+  @OnEvent('counselor.queue.left')
+  async handleCounselorLeft(event: { counselorId: string }) {
+    try {
+      this.logger.log(`Counselor ${event.counselorId} left the queue`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to handle counselor left event: ${error.message}`,
+      );
+    }
+  }
 }

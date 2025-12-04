@@ -29,7 +29,8 @@ import {
 import { ThrottlerGuard } from '@nestjs/throttler';
 
 import { ChatService } from './chat.service';
-import { CreateSessionDto } from '../dto/create-session.dto';
+import { CounselorQueueService, QueueStatusResponse } from './counselor-queue.service';
+import { CreateSessionDto, SessionType } from '../dto/create-session.dto';
 import { SendMessageDto } from '../dto/send-message.dto';
 import { QueryMessagesDto } from '../dto/query-messages.dto';
 import { EndSessionDto } from '../dto/end-session.dto';
@@ -53,7 +54,10 @@ import { UserRole } from '../../../../auth-service/src/database/entities/user.en
 @Controller('/chat')
 @UseGuards(JwtAuthGuard)
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly counselorQueueService: CounselorQueueService,
+  ) {}
 
   /**
    * Helper to verify session access
@@ -550,6 +554,183 @@ export class ChatController {
   //   );
   //   return this.mapToSessionResponse(session);
   // }
+
+  // ==================== COUNSELOR QUEUE ENDPOINTS ====================
+
+  @Post('counselor-queue/join')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Counselor joins the waiting queue' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Successfully joined the queue',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Counselor is already in the queue',
+  })
+  async joinQueue(@GetUser('userId') userId: string) {
+    if (!userId) {
+      throw new UnauthorizedException('User not authenticated or ID not found');
+    }
+    
+    console.log('Counselor joining queue:', { userId });
+    
+    const queueEntry = await this.counselorQueueService.joinQueue(userId);
+    return {
+      success: true,
+      message: 'Successfully joined the counselor queue',
+      data: {
+        id: queueEntry.id,
+        status: queueEntry.status,
+        joinedAt: queueEntry.joinedAt,
+      },
+    };
+  }
+
+  @Post('counselor-queue/leave')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Counselor leaves the waiting queue' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Successfully left the queue',
+  })
+  @HttpCode(HttpStatus.OK)
+  async leaveQueue(@GetUser('userId') userId: string) {
+    if (!userId) {
+      throw new UnauthorizedException('User not authenticated');
+    }
+    await this.counselorQueueService.leaveQueue(userId);
+    return {
+      success: true,
+      message: 'Successfully left the counselor queue',
+    };
+  }
+
+  @Get('counselor-queue/status')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.COUNSELOR, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get counselor queue status' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Queue status retrieved',
+  })
+  async getQueueStatus(@GetUser('userId') userId: string): Promise<QueueStatusResponse> {
+    if (!userId) {
+      throw new UnauthorizedException('User not authenticated');
+    }
+    return this.counselorQueueService.getQueueStatus(userId);
+  }
+
+  @Get('counselor-queue/count')
+  @Public()
+  @ApiOperation({ summary: 'Get count of available counselors' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Queue count retrieved',
+  })
+  async getQueueCount() {
+    const count = await this.counselorQueueService.getQueueCount();
+    return {
+      success: true,
+      data: { availableCounselors: count },
+    };
+  }
+
+  // ==================== COUNSELOR CHAT ENDPOINTS ====================
+
+  @Post('counselor-chat/initiate')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.USER, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'User initiates chat with a random counselor' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Chat session created and counselor matched',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'No counselors available',
+  })
+  async initiateCounselorChat(@GetUser('userId') userId: string) {
+    if (!userId) {
+      throw new UnauthorizedException('User not authenticated');
+    }
+    
+    // Find an available counselor
+    const counselor = await this.counselorQueueService.findAvailableCounselor();
+    
+    if (!counselor) {
+      return {
+        success: false,
+        message: 'No counselors are currently available. Please try again later.',
+        data: null,
+      };
+    }
+
+    // Create a counselor chat session
+    const session = await this.chatService.createSession({
+      userId: userId,
+      counselorId: counselor.counselorId,
+      sessionType: SessionType.COUNSELOR_ASSISTED,
+    });
+
+    // Mark counselor as matched
+    await this.counselorQueueService.matchCounselor(counselor.counselorId, session.id);
+
+    return {
+      success: true,
+      message: 'Successfully connected with a counselor',
+      data: {
+        sessionId: session.id,
+        sessionToken: session.sessionToken,
+      },
+    };
+  }
+
+  @Post('counselor-chat/:sessionId/end')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'End a counselor chat session' })
+  @ApiParam({ name: 'sessionId', description: 'Session ID to end' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Session ended successfully',
+  })
+  @HttpCode(HttpStatus.OK)
+  async endCounselorChat(
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @GetUser('userId') userId: string,
+  ) {
+    const session = await this.chatService.getSession(sessionId);
+
+    // Verify the user is part of this session
+    const isParticipant = 
+      session.userId === userId || 
+      session.counselorId === userId;
+
+    if (!isParticipant) {
+      throw new ForbiddenException('Not authorized to end this session');
+    }
+
+    const endedSession = await this.chatService.endSession({
+      sessionId,
+      closingSummary: 'Session ended by participant',
+    });
+
+    // Update counselor queue entry to mark session as completed
+    // This prevents the counselor from being redirected back to ended session
+    await this.counselorQueueService.completeSessionBySessionId(sessionId);
+
+    return {
+      success: true,
+      message: 'Counselor chat session ended successfully',
+      data: this.mapToSessionResponse(endedSession),
+    };
+  }
 
   // Helper methods for response mapping
   private mapToSessionResponse(session: any): SessionResponseDto {
