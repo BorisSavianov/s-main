@@ -353,7 +353,7 @@ export class VideoService {
   async getRoomDetails(roomId: string, userId: string): Promise<VideoRoom> {
     const room = await this.roomRepository.findOne({
       where: { roomId },
-      relations: ['participants', 'meeting'],
+      relations: ['participants'],
     });
 
     if (!room) {

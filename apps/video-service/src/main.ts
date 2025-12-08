@@ -21,14 +21,11 @@ async function bootstrap() {
   );
   app.use(compression());
 
-  // CORS - Important for WebRTC
+  // Enable CORS
   app.enableCors({
-    origin: configService.get('CORS_ORIGINS')?.split(',') || [
-      'http://localhost:3000',
-      'http://localhost:3001',
-    ],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-User-ID', 'X-Service'],
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id', 'X-Service'],
     credentials: true,
   });
 

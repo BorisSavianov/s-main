@@ -23,6 +23,8 @@ import { Notification } from 'apps/notification-service/src/notifications/entiti
 import { PushSubscription } from 'apps/notification-service/src/notifications/entities/push-subscription.entity';
 import { NotificationTemplate } from 'apps/notification-service/src/templates/entities/notification-template.entity';
 import { NotificationPreference } from 'apps/notification-service/src/prefrences/entities/notification-prefrence.entity';
+import { UserPreferences } from 'apps/auth-service/src/database/entities/user-preferences.entity';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -37,6 +39,7 @@ import { NotificationPreference } from 'apps/notification-service/src/prefrences
       PushSubscription,
       NotificationTemplate,
       NotificationPreference,
+      UserPreferences,
     ]),
     ConfigModule,
     HttpModule.register({
@@ -55,6 +58,7 @@ import { NotificationPreference } from 'apps/notification-service/src/prefrences
       }),
       inject: [ConfigService],
     }),
+    
   ],
   controllers: [VideoController],
   providers: [

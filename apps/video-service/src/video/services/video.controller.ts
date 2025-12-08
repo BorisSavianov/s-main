@@ -1,3 +1,4 @@
+import { Public } from '../../decorators/public.decorator';
 // apps/video-service/src/video/services/video.controller.ts
 import {
   Controller,
@@ -25,6 +26,7 @@ import { VideoService } from '../services/video.service';
 import { CreateRoomDto } from '../dtos/create-room.dto';
 import { JoinRoomDto } from '../dtos/join-room.dto';
 import { UpdateMediaStateDto } from '../dtos/update-media-state.dto';
+
 
 @ApiTags('Video')
 @Controller('video')
@@ -113,7 +115,9 @@ export class VideoController {
     );
   }
 
+
   // Room validation endpoint (for quick checks)
+  @Public()
   @Get('rooms/:roomId/validate')
   @ApiOperation({ summary: 'Validate room access' })
   @ApiResponse({ status: 200, description: 'Room access validation result' })

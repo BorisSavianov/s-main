@@ -21,6 +21,7 @@ import { Notification } from 'apps/notification-service/src/notifications/entiti
 import { PushSubscription } from 'apps/notification-service/src/notifications/entities/push-subscription.entity';
 import { NotificationTemplate } from 'apps/notification-service/src/templates/entities/notification-template.entity';
 import { NotificationPreference } from 'apps/notification-service/src/prefrences/entities/notification-prefrence.entity';
+import { UserPreferences } from 'apps/auth-service/src/database/entities/user-preferences.entity';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { NotificationPreference } from 'apps/notification-service/src/prefrences
         type: 'postgres',
         url: configService.get<string>('DATABASE_URL'),
         entities: [
+          UserPreferences,
           VideoParticipant,
           VideoRoom,
           VideoSession,
