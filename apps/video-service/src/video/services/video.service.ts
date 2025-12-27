@@ -79,12 +79,25 @@ export class VideoService {
     const { meetingId, maxParticipants, isRecordingEnabled, roomSettings } =
       createRoomDto;
 
+    this.logger.log('Creating room for meeting:', meetingId);
+    this.logger.log('Meeting ID:', meetingId);
+    this.logger.log('Host user ID:', hostUserId);
+    this.logger.log('Max participants:', maxParticipants);
+    this.logger.log('Is recording enabled:', isRecordingEnabled);
+    this.logger.log('Room settings:', JSON.stringify(roomSettings));
+
+    if (!hostUserId) {
+      throw new BadRequestException('Host user ID is required');
+    }
+
     // Validate meeting exists and user has permission
-    if (meetingId) {
+    if (meetingId ) {
       const meeting = await this.schedulingIntegration.validateMeetingAccess(
         meetingId,
         hostUserId,
       );
+
+      this.logger.log('Meeting access validated:', JSON.stringify(meeting));
       if (!meeting) {
         throw new BadRequestException('Meeting not found or access denied');
       }

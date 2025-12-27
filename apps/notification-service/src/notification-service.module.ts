@@ -35,6 +35,7 @@ import { CounselorProfile } from 'apps/auth-service/src/database/entities/counse
 import { UserSession } from 'apps/auth-service/src/database/entities/user-session.entity';
 import { OAuthProvider } from 'apps/auth-service/src/database/entities/oauth-provider.entity';
 import { NotificationServiceClient } from './clients/notification-service.client';
+import { UserPreferences } from 'apps/auth-service/src/database/entities/user-preferences.entity';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { NotificationServiceClient } from './clients/notification-service.client
           CounselorProfile,
           UserSession,
           OAuthProvider,
+          UserPreferences,
         ],
         synchronize: false, // Set to false in production
         logging: configService.get<string>('NODE_ENV') === 'development',

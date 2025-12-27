@@ -14,6 +14,7 @@ import {
   BadRequestException,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -26,6 +27,8 @@ import { VideoService } from '../services/video.service';
 import { CreateRoomDto } from '../dtos/create-room.dto';
 import { JoinRoomDto } from '../dtos/join-room.dto';
 import { UpdateMediaStateDto } from '../dtos/update-media-state.dto';
+import { GetUser } from 'apps/mood-service/src/decorators/get-user.decorator';
+import { InternalAuth } from 'apps/user-service/src/auth/decorators/internal-auth.decorator';
 
 
 @ApiTags('Video')
@@ -35,45 +38,50 @@ import { UpdateMediaStateDto } from '../dtos/update-media-state.dto';
 export class VideoController {
   constructor(private readonly videoService: VideoService) {}
 
+  @InternalAuth()
   @Post('rooms')
   @ApiOperation({ summary: 'Create a new video room' })
   @ApiResponse({ status: 201, description: 'Room created successfully' })
-  async createRoom(@Body() createRoomDto: CreateRoomDto, @Request() req: any) {
-    return this.videoService.createRoom(createRoomDto, req.user.id);
+  async createRoom(@Body() createRoomDto: CreateRoomDto, @GetUser('userId') userId: string) {
+    return this.videoService.createRoom(createRoomDto, userId);
   }
-
+  
+    
   @Post('rooms/:roomId/join')
   @ApiOperation({ summary: 'Join a video room' })
   @ApiResponse({ status: 200, description: 'Successfully joined room' })
   async joinRoom(
     @Param('roomId') roomId: string,
     @Body() joinRoomDto: JoinRoomDto,
-    @Request() req: any,
+    @GetUser('userId') userId: string,
   ) {
-    return this.videoService.joinRoom(roomId, joinRoomDto, req.user.id);
+    return this.videoService.joinRoom(roomId, joinRoomDto, userId);
   }
 
+  @InternalAuth()
   @Delete('rooms/:roomId/leave')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Leave a video room' })
   @ApiResponse({ status: 204, description: 'Successfully left room' })
-  async leaveRoom(@Param('roomId') roomId: string, @Request() req: any) {
-    await this.videoService.leaveRoom(roomId, req.user.id);
+  async leaveRoom(@Param('roomId') roomId: string, @GetUser('userId') userId: string) {
+    await this.videoService.leaveRoom(roomId, userId);
   }
 
+  @InternalAuth()
   @Delete('rooms/:roomId/end')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'End a video room' })
   @ApiResponse({ status: 204, description: 'Room ended successfully' })
-  async endRoom(@Param('roomId') roomId: string, @Request() req: any) {
-    await this.videoService.endRoom(roomId, req.user.id);
+  async endRoom(@Param('roomId') roomId: string, @GetUser('userId') userId: string) {
+    await this.videoService.endRoom(roomId, userId);
   }
 
+  @InternalAuth()
   @Get('rooms/:roomId')
   @ApiOperation({ summary: 'Get room details' })
   @ApiResponse({ status: 200, description: 'Room details retrieved' })
-  async getRoomDetails(@Param('roomId') roomId: string, @Request() req: any) {
-    return this.videoService.getRoomDetails(roomId, req.user.id);
+  async getRoomDetails(@Param('roomId') roomId: string, @GetUser('userId') userId: string) {
+    return this.videoService.getRoomDetails(roomId, userId);
   }
 
   @Get('rooms/:roomId/stats')
@@ -83,22 +91,24 @@ export class VideoController {
     return this.videoService.getRoomStats(roomId);
   }
 
+  @InternalAuth()
   @Put('rooms/:roomId/media')
   @ApiOperation({ summary: 'Update participant media state' })
   @ApiResponse({ status: 200, description: 'Media state updated' })
   async updateMediaState(
     @Param('roomId') roomId: string,
     @Body() updateMediaStateDto: UpdateMediaStateDto,
-    @Request() req: any,
+    @GetUser('userId') userId: string,
   ) {
     await this.videoService.updateParticipantMedia(
       roomId,
-      req.user.id,
+      userId,
       updateMediaStateDto,
     );
     return { message: 'Media state updated successfully' };
   }
 
+  @InternalAuth()
   @Post('rooms/:roomId/signal')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Handle WebRTC signaling' })
@@ -106,34 +116,34 @@ export class VideoController {
   async handleSignaling(
     @Param('roomId') roomId: string,
     @Body() signalData: any,
-    @Request() req: any,
+    @GetUser('userId') userId: string,
   ) {
     await this.videoService.handleWebRTCSignaling(
       roomId,
-      req.user.id,
+      userId,
       signalData,
     );
   }
 
 
-  // Room validation endpoint (for quick checks)
+  @InternalAuth()
   @Public()
   @Get('rooms/:roomId/validate')
   @ApiOperation({ summary: 'Validate room access' })
   @ApiResponse({ status: 200, description: 'Room access validation result' })
   async validateRoomAccess(
     @Param('roomId') roomId: string,
+    @GetUser('userId') userId: string,
     @Query('accessCode') accessCode?: string,
-    @Request() req?: any,
   ) {
     try {
       const room = await this.videoService.getRoomDetails(
         roomId,
-        req?.user?.id,
+        userId,
       );
 
       const hasAccess =
-        room.hostUserId === req?.user?.id ||
+        room.hostUserId === userId ||
         accessCode === room.accessCode ||
         accessCode === room.moderatorCode;
 
@@ -154,12 +164,13 @@ export class VideoController {
   }
 
   // Meeting integration endpoints
+  @InternalAuth()
   @Get('meetings/:meetingId/room')
   @ApiOperation({ summary: 'Get room for a meeting' })
   @ApiResponse({ status: 200, description: 'Meeting room details' })
   async getMeetingRoom(
     @Param('meetingId') meetingId: string,
-    @Request() req: any,
+    @GetUser('userId') userId: string,
   ) {
     // This would integrate with the scheduling service
     // to find the room associated with a meeting
@@ -177,26 +188,27 @@ export class VideoController {
 
       return await this.videoService.getRoomDetails(
         activeRoom.roomId,
-        req.user.id,
+        userId,
       );
     } catch (error) {
       throw new BadRequestException(`Meeting room not found: ${error.message}`);
     }
   }
 
+  @InternalAuth()
   @Post('meetings/:meetingId/room')
   @ApiOperation({ summary: 'Create room for a meeting' })
   @ApiResponse({ status: 201, description: 'Meeting room created' })
   async createMeetingRoom(
     @Param('meetingId') meetingId: string,
     @Body() createRoomDto: CreateRoomDto,
-    @Request() req: any,
+    @GetUser('userId') userId: string,
   ) {
     const roomDto = {
       ...createRoomDto,
       meetingId,
     };
 
-    return this.videoService.createRoom(roomDto, req.user.id);
+    return this.videoService.createRoom(roomDto, userId);
   }
 }

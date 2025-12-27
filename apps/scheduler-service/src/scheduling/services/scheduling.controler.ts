@@ -31,6 +31,9 @@ import { CreateMeetingDto } from '../dto/create-meeting.dto';
 import { UpdateMeetingDto } from '../dto/update-meeting.dto';
 import { SchedulingQueryDto } from '../dto/scheduling-query.dto';
 import { CreateTimeSlotDto } from '../dto/create-time-slot.dto';
+import { EnhancedSchedulingService } from '../services/enhanced-scheduling.service';
+import { VideoIntegrationService } from '../services/video-integration.service';
+import { InternalAuth } from 'apps/user-service/src/auth/decorators/internal-auth.decorator';
 
 @ApiTags('Scheduling')
 @ApiBearerAuth()
@@ -38,8 +41,10 @@ import { CreateTimeSlotDto } from '../dto/create-time-slot.dto';
 @Controller('scheduling')
 export class SchedulingController {
   constructor(
+    private readonly enhancedSchedulingService: EnhancedSchedulingService,
     private readonly schedulingService: SchedulingService,
     private readonly availabilityService: AvailabilityService,
+    private readonly videoIntegrationService: VideoIntegrationService,
   ) {}
 
   @Post('meetings')
@@ -53,11 +58,11 @@ export class SchedulingController {
     description: 'Meeting created',
     type: CreateMeetingDto,
   })
-  async createMeeting(
+  async createMeetingWithRoom(
     @GetUser('userId') userId: string,
     @Body() dto: CreateMeetingDto,
   ) {
-    return this.schedulingService.createMeeting(userId, dto);
+    return this.enhancedSchedulingService.createMeetingWithRoom(userId, dto);
   }
 
   @Get('meetings')
@@ -150,10 +155,11 @@ export class SchedulingController {
     return this.schedulingService.getMeetingStatistics(userId, isProvider);
   }
 
+  @InternalAuth()
   @Get('meetings/:id')
   @ApiOperation({
-    summary: 'Get meeting by ID',
-    description: 'Retrieve a single meeting by its UUID.',
+    summary: 'Get meeting with room status',
+    description: 'Returns meeting details including video room status if applicable.',
   })
   @ApiParam({ name: 'id', type: 'uuid', description: 'Meeting ID' })
   @ApiResponse({
@@ -165,13 +171,13 @@ export class SchedulingController {
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('userId') userId: string,
   ) {
-    return this.schedulingService.getMeetingById(id, userId);
+    return this.enhancedSchedulingService.getMeetingWithRoomStatus(id, userId);
   }
 
   @Put('meetings/:id')
   @ApiOperation({
     summary: 'Update meeting',
-    description: 'Modify details of an existing meeting.',
+    description: 'Updates meeting and syncs changes with video room.',
   })
   @ApiParam({ name: 'id', type: 'uuid', description: 'Meeting ID' })
   @ApiBody({ type: UpdateMeetingDto })
@@ -185,8 +191,9 @@ export class SchedulingController {
     @GetUser('userId') userId: string,
     @Body() dto: UpdateMeetingDto,
   ) {
-    return this.schedulingService.updateMeeting(id, userId, dto);
+    return this.enhancedSchedulingService.updateMeetingWithRoom(id, userId, dto);
   }
+
 
   @Put('meetings/:id/confirm')
   @ApiOperation({
@@ -202,10 +209,38 @@ export class SchedulingController {
     return this.schedulingService.confirmMeeting(id, userId);
   }
 
+  @Put('meetings/:id/start')
+  @ApiOperation({
+    summary: 'Start meeting',
+    description: 'Marks meeting as in-progress.',
+  })
+  @ApiParam({ name: 'id', type: 'uuid', description: 'Meeting ID' })
+  @ApiResponse({ status: 200, description: 'Meeting started' })
+  async startMeeting(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('userId') userId: string,
+  ) {
+    return this.enhancedSchedulingService.startMeeting(id, userId);
+  }
+
+  @Put('meetings/:id/complete')
+  @ApiOperation({
+    summary: 'Complete meeting',
+    description: 'Marks meeting as completed and retrieves room statistics.',
+  })
+  @ApiParam({ name: 'id', type: 'uuid', description: 'Meeting ID' })
+  @ApiResponse({ status: 200, description: 'Meeting completed' })
+  async completeMeeting(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('userId') userId: string,
+  ) {
+    return this.enhancedSchedulingService.completeMeeting(id, userId);
+  }
+
   @Put('meetings/:id/cancel')
   @ApiOperation({
     summary: 'Cancel meeting',
-    description: 'Cancel a meeting with optional reason.',
+    description: 'Cancels meeting and ends associated video room.',
   })
   @ApiParam({ name: 'id', type: 'uuid', description: 'Meeting ID' })
   @ApiQuery({
@@ -220,7 +255,57 @@ export class SchedulingController {
     @GetUser('userId') userId: string,
     @Query('reason') reason?: string,
   ) {
-    return this.schedulingService.cancelMeeting(id, userId, reason);
+    return this.enhancedSchedulingService.cancelMeetingWithRoom(id, userId, reason);
+  }
+
+  @InternalAuth()
+  @Post('meetings/:id/ensure-room')
+  @ApiOperation({
+    summary: 'Ensure video room exists',
+    description: 'Creates video room if it doesn\'t exist (lazy creation).',
+  })
+  @ApiParam({ name: 'id', type: 'uuid', description: 'Meeting ID' })
+  @ApiResponse({ status: 200, description: 'Video room ensured' })
+  async ensureVideoRoom(@Param('id', ParseUUIDPipe) id: string) {
+    const roomUrl = await this.enhancedSchedulingService.ensureVideoRoom(id);
+    return { roomUrl };
+  }
+
+  @Get('meetings/:id/room-access')
+  @ApiOperation({
+    summary: 'Validate room access',
+    description: 'Checks if user can access the meeting\'s video room.',
+  })
+  @ApiParam({ name: 'id', type: 'uuid', description: 'Meeting ID' })
+  @ApiQuery({
+    name: 'accessCode',
+    required: false,
+    type: String,
+    description: 'Access code for video room',
+  })
+  @ApiResponse({ status: 200, description: 'Room access validated' })
+  async validateRoomAccess(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('userId') userId: string,
+    @Query('accessCode') accessCode?: string,
+  ) {
+    const meeting = await this.schedulingService.getMeetingById(id, userId);
+    
+    if (!meeting.meetingRoomId) {
+      return { valid: false, error: 'No video room associated with this meeting' };
+    }
+
+    const valid = await this.videoIntegrationService.validateRoomAccess(
+      meeting.meetingRoomId,
+      userId,
+      accessCode,
+    );
+
+    return {
+      valid,
+      roomId: meeting.meetingRoomId,
+      roomUrl: meeting.meetingRoomUrl,
+    };
   }
 
   @Post('time-slots')
@@ -375,5 +460,19 @@ export class SchedulingController {
       startTime,
       endTime,
     );
+  }
+
+  @Get('health/video-service')
+  @ApiOperation({
+    summary: 'Check video service health',
+    description: 'Verifies connectivity to video service.',
+  })
+  async checkVideoServiceHealth() {
+    const healthy = await this.videoIntegrationService.checkVideoServiceHealth();
+    return {
+      status: healthy ? 'healthy' : 'unhealthy',
+      service: 'video-service',
+      timestamp: new Date().toISOString(),
+    };
   }
 }

@@ -3,22 +3,35 @@ import {
   ExecutionContext,
   Injectable,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
+import { ConfigService } from '@nestjs/config';
 import { Observable } from 'rxjs';
 
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { IS_INTERNAL_KEY } from '../decorators/internal-auth.decorator';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
-  constructor(private reflector: Reflector) {
+  private readonly logger = new Logger(JwtAuthGuard.name);
+  private readonly allowedServices: string[];
+
+  constructor(
+    private reflector: Reflector,
+    private configService: ConfigService,
+  ) {
     super();
+    this.allowedServices = this.configService
+      .get<string>(
+        'ALLOWED_INTERNAL_SERVICES',
+        'video-service,scheduler-service,user-service,mood-service',
+      )
+      .split(',');
   }
 
-  canActivate(
-    context: ExecutionContext,
-  ): boolean | Promise<boolean> | Observable<boolean> {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -28,16 +41,53 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       return true;
     }
 
-    return super.canActivate(context);
+    // Check for internal service auth
+    const request = context.switchToHttp().getRequest();
+    const serviceName = request.headers['x-service'] as string;
+    const userId = request.headers['x-user-id'] as string;
+
+    const isInternalEndpoint = this.reflector.getAllAndOverride<boolean>(
+      IS_INTERNAL_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
+    if (
+      isInternalEndpoint &&
+      serviceName &&
+      this.allowedServices.includes(serviceName)
+    ) {
+      this.logger.debug(
+        `Internal service call authorized: ${serviceName} for user: ${userId}`,
+      );
+
+      // Populate user context for services
+      request.user = {
+        id: userId,
+        userId: userId, // Some services use userId
+        service: serviceName,
+        isService: true,
+      };
+      
+      return true;
+    }
+
+    // Fallback to standard JWT authentication
+    const canActivate = await super.canActivate(context);
+    return canActivate as boolean;
   }
 
   handleRequest(err: any, user: any, info: any, context: ExecutionContext) {
+    // If we've already authenticated via internal service, don't throw
+    const request = context.switchToHttp().getRequest();
+    if (request.user?.isService) {
+      return request.user;
+    }
+
     if (err || !user) {
-      const request = context.switchToHttp().getRequest();
-      const isPublic = this.reflector.getAllAndOverride<boolean>(
-        IS_PUBLIC_KEY,
-        [context.getHandler(), context.getClass()],
-      );
+      const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
 
       if (isPublic) {
         return null;

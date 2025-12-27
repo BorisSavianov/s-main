@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
+import { log } from 'console';
 
 interface Meeting {
   id: string;
@@ -28,7 +29,7 @@ export class SchedulingIntegrationService {
   ) {
     this.schedulingServiceUrl = this.configService.get<string>(
       'SCHEDULING_SERVICE_URL',
-      'http://localhost:4003',
+      'http://scheduler-service:4003/api/v1/scheduling',
     );
   }
 
@@ -50,15 +51,19 @@ export class SchedulingIntegrationService {
         ),
       );
 
-      const meeting = response.data;
-
+      const meeting = response.data.data;
+      
+      this.logger.debug(`Meeting counselorId: ${meeting.counselor?.id}`);
+      this.logger.debug(`Meeting clientId: ${meeting.user?.id}`);
+      this.logger.debug(`User id: ${userId}`);
+      
       // Check if user has access to this meeting
       const hasAccess =
-        meeting.counselorId === userId || meeting.clientId === userId;
+        meeting.counselor?.id === userId || meeting.user?.id === userId;
 
       if (!hasAccess) {
         this.logger.warn(
-          `User ${userId} attempted to access meeting ${meetingId} without permission`,
+          `User ${userId} attempted to access meeting ${meetingId} without permission: ${JSON.stringify(meeting)}`,
         );
         return null;
       }
@@ -142,7 +147,7 @@ export class SchedulingIntegrationService {
         ),
       );
 
-      return response.data.participants || [];
+      return response.data.data.participants || [];
     } catch (error) {
       this.logger.error(`Failed to get meeting participants: ${error.message}`);
       return [];
@@ -220,7 +225,7 @@ export class SchedulingIntegrationService {
         }),
       );
 
-      return response.data;
+      return response.data?.data;
     } catch (error) {
       this.logger.error(`Failed to get user details: ${error.message}`);
       return null;
@@ -259,7 +264,7 @@ export class SchedulingIntegrationService {
         ),
       );
 
-      return response.data;
+      return response.data?.data;
     } catch (error) {
       this.logger.error(`Failed to create emergency meeting: ${error.message}`);
       return null;
