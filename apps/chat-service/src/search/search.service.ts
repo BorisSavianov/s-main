@@ -127,88 +127,86 @@ export class SearchService {
     if (!indexExists) {
       await this.elasticsearchService.indices.create({
         index: this.INDEX_NAME,
-        body: {
-          mappings: {
-            properties: {
-              id: { type: 'keyword' },
-              sessionId: { type: 'keyword' },
-              senderId: { type: 'keyword' },
-              senderType: { type: 'keyword' },
-              content: {
-                type: 'text',
-                analyzer: 'mental_health_analyzer',
-                fields: {
-                  keyword: { type: 'keyword' },
-                  suggest: {
-                    type: 'completion',
-                    analyzer: 'simple',
-                  },
-                  raw: {
-                    type: 'text',
-                    analyzer: 'keyword',
-                  },
+        mappings: {
+          properties: {
+            id: { type: 'keyword' },
+            sessionId: { type: 'keyword' },
+            senderId: { type: 'keyword' },
+            senderType: { type: 'keyword' },
+            content: {
+              type: 'text',
+              analyzer: 'mental_health_analyzer',
+              fields: {
+                keyword: { type: 'keyword' },
+                suggest: {
+                  type: 'completion',
+                  analyzer: 'simple',
                 },
-              },
-              contentType: { type: 'keyword' },
-              sentimentScore: { type: 'float' },
-              isFlagged: { type: 'boolean' },
-              flagReason: { type: 'text' },
-              embedding: {
-                type: 'dense_vector',
-                dims: 768,
-                index: true,
-                similarity: 'cosine',
-              },
-              topics: { type: 'keyword' },
-              entities: {
-                type: 'nested',
-                properties: {
-                  type: { type: 'keyword' },
-                  value: { type: 'keyword' },
-                  confidence: { type: 'float' },
-                },
-              },
-              createdAt: { type: 'date' },
-              updatedAt: { type: 'date' },
-            },
-          },
-          settings: {
-            number_of_shards: 1,
-            number_of_replicas: process.env.NODE_ENV === 'production' ? 1 : 0,
-            analysis: {
-              analyzer: {
-                mental_health_analyzer: {
-                  type: 'custom',
-                  tokenizer: 'standard',
-                  filter: [
-                    'lowercase',
-                    'stop',
-                    'mental_health_stemmer',
-                    'mental_health_synonyms',
-                  ],
-                },
-              },
-              filter: {
-                mental_health_stemmer: {
-                  type: 'stemmer',
-                  language: 'english',
-                },
-                mental_health_synonyms: {
-                  type: 'synonym',
-                  synonyms: [
-                    'sad,depressed,down,blue,melancholy,dejected',
-                    'anxious,worried,nervous,stressed,fearful,apprehensive',
-                    'angry,mad,furious,irritated,frustrated,annoyed',
-                    'happy,joyful,glad,cheerful,elated,content',
-                    'therapy,counseling,treatment,support',
-                    'panic,anxiety attack,panic attack',
-                    'insomnia,sleeplessness,sleep problems',
-                  ],
+                raw: {
+                  type: 'text',
+                  analyzer: 'keyword',
                 },
               },
             },
+            contentType: { type: 'keyword' },
+            sentimentScore: { type: 'float' },
+            isFlagged: { type: 'boolean' },
+            flagReason: { type: 'text' },
+            embedding: {
+              type: 'dense_vector',
+              dims: 768,
+              index: true,
+              similarity: 'cosine',
+            },
+            topics: { type: 'keyword' },
+            entities: {
+              type: 'nested',
+              properties: {
+                type: { type: 'keyword' },
+                value: { type: 'keyword' },
+                confidence: { type: 'float' },
+              },
+            },
+            createdAt: { type: 'date' },
+            updatedAt: { type: 'date' },
           },
-        } as Record<string, any>,
+        },
+        settings: {
+          number_of_shards: 1,
+          number_of_replicas: process.env.NODE_ENV === 'production' ? 1 : 0,
+          analysis: {
+            analyzer: {
+              mental_health_analyzer: {
+                type: 'custom',
+                tokenizer: 'standard',
+                filter: [
+                  'lowercase',
+                  'stop',
+                  'mental_health_stemmer',
+                  'mental_health_synonyms',
+                ],
+              },
+            },
+            filter: {
+              mental_health_stemmer: {
+                type: 'stemmer',
+                language: 'english',
+              },
+              mental_health_synonyms: {
+                type: 'synonym',
+                synonyms: [
+                  'sad,depressed,down,blue,melancholy,dejected',
+                  'anxious,worried,nervous,stressed,fearful,apprehensive',
+                  'angry,mad,furious,irritated,frustrated,annoyed',
+                  'happy,joyful,glad,cheerful,elated,content',
+                  'therapy,counseling,treatment,support',
+                  'panic,anxiety attack,panic attack',
+                  'insomnia,sleeplessness,sleep problems',
+                ],
+              },
+            },
+          },
+        },
       });
     }
   }
@@ -223,23 +221,23 @@ export class SearchService {
         mappings: {
           properties: {
             suggest: {
-              type: 'completion',
+              type: 'completion' as const,
               analyzer: 'simple',
               preserve_separators: true,
               preserve_position_increments: true,
               max_input_length: 50,
             },
-            type: { type: 'keyword' },
-            frequency: { type: 'integer' },
-            sessionId: { type: 'keyword' },
-            createdAt: { type: 'date' },
+            type: { type: 'keyword' as const },
+            frequency: { type: 'integer' as const },
+            sessionId: { type: 'keyword' as const },
+            createdAt: { type: 'date' as const },
           },
         },
       };
 
       await this.elasticsearchService.indices.create({
         index: this.SUGGESTION_INDEX,
-        body: body as Record<string, any>, // cast to any to avoid strict type errors
+        ...body,
       });
     }
   }
@@ -399,7 +397,7 @@ export class SearchService {
 
       const response = await this.elasticsearchService.search({
         index: this.INDEX_NAME,
-        body: searchBody,
+        ...searchBody,
       });
 
       return this.formatSearchResponse(response, query);
@@ -465,32 +463,23 @@ export class SearchService {
                       query_vector: queryEmbedding,
                     },
                   },
-                  //min_score: threshold,
                 },
               },
             ],
           },
         },
         size: limit,
+        min_score: threshold,
         _source: {
           excludes: ['embedding'],
         },
       };
       this.logger.log('4 ' + JSON.stringify(searchBody));
 
-      // Then call
       const response = await this.elasticsearchService.search({
         index: this.INDEX_NAME,
-        body: {
-          query: {
-            match_all: {},
-          },
-          size: 1,
-          _source: ['id', 'embedding'],
-        } as Record<string, any>,
+        ...searchBody,
       });
-
-      this.logger.debug('Raw ES response:', JSON.stringify(response, null, 2));
 
       const results: SemanticSearchResult[] = response.hits.hits.map(
         (hit: any) => ({
@@ -575,18 +564,16 @@ export class SearchService {
       // Get completion suggestions
       const completionResponse = await this.elasticsearchService.search({
         index: this.INDEX_NAME,
-        body: {
-          suggest: {
-            content_suggest: {
-              prefix,
-              completion: {
-                field: 'content.suggest',
-                size: limit,
-                contexts: sessionId ? { sessionId: [sessionId] } : undefined,
-              },
+        suggest: {
+          content_suggest: {
+            prefix,
+            completion: {
+              field: 'content.suggest',
+              size: limit,
+              contexts: sessionId ? { sessionId: [sessionId] } : undefined,
             },
           },
-        } as Record<string, any>,
+        },
       });
 
       const rawOptions =
@@ -712,7 +699,7 @@ export class SearchService {
       await this.elasticsearchService.index({
         index: this.INDEX_NAME,
         id: message.id,
-        body: document,
+        ...document,
       });
       // Update search suggestions
       await this.updateSuggestions(message.content, message.sessionId);
@@ -790,7 +777,7 @@ export class SearchService {
           suggestion,
         ]);
 
-        await this.elasticsearchService.bulk({ body });
+        await this.elasticsearchService.bulk({ operations: body });
       }
     } catch (error) {
       this.logger.error(`Failed to update suggestions: ${error.message}`);

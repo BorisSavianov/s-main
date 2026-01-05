@@ -98,33 +98,6 @@ export class MessageProcessingProcessor {
   //   }
   // }
 
-  @Process('index-message')
-  async handleMessageIndexing(job: Job<any>) {
-    const { messageId, sessionId, content, senderType } = job.data;
-
-    try {
-      this.logger.debug(`Processing search indexing for message ${messageId}`);
-
-      // Index message for search (implement actual search service integration)
-      await this.indexMessageForSearch({
-        messageId,
-        sessionId,
-        content,
-        senderType,
-        indexedAt: new Date(),
-      });
-
-      this.logger.debug(`Message ${messageId} indexed successfully`);
-
-      return { messageId, indexed: true };
-    } catch (error) {
-      this.logger.error(
-        `Message indexing failed for message ${messageId}: ${error.message}`,
-      );
-      throw error;
-    }
-  }
-
   private async analyzeSentiment(content: string): Promise<number> {
     // Simple sentiment analysis - replace with actual AI service
     const positiveWords = [
@@ -187,12 +160,6 @@ export class MessageProcessingProcessor {
     }
 
     return { flagged: false };
-  }
-
-  private async indexMessageForSearch(data: any): Promise<void> {
-    // Implement search indexing logic here
-    // This would typically send data to Elasticsearch or similar search engine
-    this.logger.debug(`Indexing message ${data.messageId} for search`);
   }
 
   private async updateSessionSentiment(sessionId: string): Promise<void> {

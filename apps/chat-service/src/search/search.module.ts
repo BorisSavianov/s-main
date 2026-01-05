@@ -127,8 +127,8 @@ import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
           },
           {
             name: 'search-suggestions',
-            ttl: configService.get<number>('SUGGESTIONS_TTL', 30000), // 30 seconds
-            limit: configService.get<number>('SUGGESTIONS_LIMIT', 50), // 50 suggestion requests per 30 seconds
+            ttl: configService.get<number>('SUGGESTIONS_TTL', 10000), // 10 seconds
+            limit: configService.get<number>('SUGGESTIONS_LIMIT', 50), // 50 suggestion requests per 10 seconds
           },
         ],
       }),

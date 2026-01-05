@@ -6,9 +6,10 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindManyOptions, Between, In } from 'typeorm';
+import { Between, In, Repository } from 'typeorm';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { ChatMessage, SenderType } from '../entities/chat-message.entity';
 import { MessageAttachment } from '../entities/message-attachment.entity';
@@ -28,6 +29,7 @@ export class MessageService {
     private readonly attachmentRepository: Repository<MessageAttachment>,
     @InjectQueue('message-processing')
     private readonly messageQueue: Queue,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async sendMessage(
@@ -54,6 +56,14 @@ export class MessageService {
 
       const savedMessage = await this.messageRepository.save(message);
 
+      // Emit message.sent for indexing
+      this.eventEmitter.emit('message.sent', {
+        messageId: savedMessage.id,
+        sessionId: savedMessage.sessionId,
+        senderType: savedMessage.senderType,
+        content: savedMessage.content,
+      });
+
       // Handle attachments if provided
       if (sendMessageDto.attachmentIds!.length > 0) {
         await this.attachAttachments(
@@ -61,13 +71,6 @@ export class MessageService {
           sendMessageDto.attachmentIds!,
         );
       }
-
-      // Queue message for processing (sentiment analysis, etc.)
-      await this.messageQueue.add('process-message', {
-        messageId: savedMessage.id,
-        content: savedMessage.content,
-        senderType: savedMessage.senderType,
-      });
 
       this.logger.log(
         `Message sent: ${savedMessage.id} in session ${savedMessage.sessionId}`,
@@ -199,6 +202,13 @@ export class MessageService {
       }
 
       const updatedMessage = await this.messageRepository.save(message);
+
+      // Emit message.updated for indexing
+      this.eventEmitter.emit('message.updated', {
+        messageId,
+        sessionId: updatedMessage.sessionId,
+        changes: updateDto,
+      });
 
       this.logger.log(`Updated message: ${messageId}`);
 

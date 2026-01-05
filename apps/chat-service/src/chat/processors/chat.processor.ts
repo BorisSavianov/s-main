@@ -144,7 +144,15 @@ How are you feeling today? What would you like to talk about?`,
         contentType: 'text',
       });
 
-      await this.chatMessageRepository.save(welcomeMessage);
+      const savedMessage = await this.chatMessageRepository.save(welcomeMessage);
+
+      // Emit message.sent for indexing
+      this.eventEmitter.emit('message.sent', {
+        messageId: savedMessage.id,
+        sessionId: savedMessage.sessionId,
+        senderType: savedMessage.senderType,
+        content: savedMessage.content,
+      });
 
       this.logger.debug(`Welcome message sent to session: ${sessionId}`);
     } catch (error) {
@@ -231,6 +239,13 @@ How are you feeling today? What would you like to talk about?`,
         flagReason: flagReason,
       });
 
+      // Emit message.updated for indexing
+      this.eventEmitter.emit('message.updated', {
+        messageId,
+        sessionId,
+        changes: { isFlagged: true, flagReason },
+      });
+
       // Use notification service via microservice
       await this.sendAdminNotification({
         type: 'message_flagged',
@@ -279,7 +294,15 @@ Your life has value and help is available. Please don't hesitate to reach out.`,
         contentType: 'text',
       });
 
-      await this.chatMessageRepository.save(interventionMessage);
+      const savedIntervention = await this.chatMessageRepository.save(interventionMessage);
+
+      // Emit message.sent for indexing
+      this.eventEmitter.emit('message.sent', {
+        messageId: savedIntervention.id,
+        sessionId: savedIntervention.sessionId,
+        senderType: savedIntervention.senderType,
+        content: savedIntervention.content,
+      });
 
       // Use notification service for admin alert
       await this.sendAdminNotification({
@@ -320,7 +343,15 @@ Your life has value and help is available. Please don't hesitate to reach out.`,
           contentType: 'text',
         });
 
-        await this.chatMessageRepository.save(crisisMessage);
+        const savedCrisis = await this.chatMessageRepository.save(crisisMessage);
+
+        // Emit message.sent for indexing
+        this.eventEmitter.emit('message.sent', {
+          messageId: savedCrisis.id,
+          sessionId: savedCrisis.sessionId,
+          senderType: savedCrisis.senderType,
+          content: savedCrisis.content,
+        });
       }
 
       await this.alertCrisisTeam({
@@ -351,8 +382,14 @@ Your life has value and help is available. Please don't hesitate to reach out.`,
 
       if (moderationResult.shouldFlag) {
         await this.chatMessageRepository.update(messageId, {
-          isFlagged: true,
           flagReason: moderationResult.reason,
+        });
+
+        // Emit message.updated for indexing
+        this.eventEmitter.emit('message.updated', {
+          messageId,
+          sessionId,
+          changes: { isFlagged: true, flagReason: moderationResult.reason },
         });
 
         this.eventEmitter.emit('content.flagged', {
@@ -385,6 +422,12 @@ Your life has value and help is available. Please don't hesitate to reach out.`,
 
       await this.chatMessageRepository.update(messageId, {
         sentimentScore: sentiment,
+      });
+
+      // Emit message.updated for indexing
+      this.eventEmitter.emit('message.updated', {
+        messageId,
+        changes: { sentimentScore: sentiment },
       });
 
       this.logger.debug(

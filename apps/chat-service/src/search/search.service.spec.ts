@@ -124,9 +124,7 @@ describe('SearchService', () => {
       expect(result.results[0].content).toBe('hello world');
       expect(mockElasticsearchService.search).toHaveBeenCalledWith(
         expect.objectContaining({
-          body: expect.objectContaining({
-            query: expect.any(Object),
-          }),
+          query: expect.any(Object),
         }),
       );
     });
@@ -152,10 +150,8 @@ describe('SearchService', () => {
       expect(mockElasticsearchService.index).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 'msg-1',
-          body: expect.objectContaining({
-            content: 'hello',
-            embedding: mockEmbedding,
-          }),
+          content: 'hello',
+          embedding: mockEmbedding,
         }),
       );
     });

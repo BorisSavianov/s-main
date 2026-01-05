@@ -7,6 +7,7 @@ import { ClientProxy } from '@nestjs/microservices';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ChatSession } from '../chat/entities/chat-session.entity';
 import { ChatMessage } from '../chat/entities/chat-message.entity';
 import { AiContext } from '../ai/entities/ai-context.entity';
@@ -43,6 +44,7 @@ export class WebSocketService {
     private readonly analyticsQueue: Queue,
     @Inject()
     private readonly userService: UserService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   setServer(server: Server) {
@@ -178,6 +180,14 @@ export class WebSocketService {
       }) as ChatMessage;
 
       const savedMessage = await this.messageRepository.save(message);
+
+      // Emit message.sent event for indexing and other listeners
+      this.eventEmitter.emit('message.sent', {
+        messageId: savedMessage.id,
+        sessionId: savedMessage.sessionId,
+        senderType: savedMessage.senderType,
+        content: savedMessage.content,
+      });
 
       // Queue for AI processing (sentiment analysis, etc.)
       await this.queueMessageForProcessing(savedMessage);
@@ -425,24 +435,6 @@ export class WebSocketService {
           attempts: 2,
           removeOnComplete: 100,
           removeOnFail: 50,
-        },
-      );
-
-      // Queue for search indexing with lower priority
-      await this.messageProcessingQueue.add(
-        'index-message',
-        {
-          messageId: message.id,
-          sessionId: message.sessionId,
-          content: message.content,
-          senderType: message.senderType,
-        },
-        {
-          priority: 10, // Lower priority
-          delay: 5000, // 5 second delay
-          attempts: 2,
-          removeOnComplete: 50,
-          removeOnFail: 25,
         },
       );
 
