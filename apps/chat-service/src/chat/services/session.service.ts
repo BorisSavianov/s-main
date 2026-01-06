@@ -10,6 +10,7 @@ import { ChatSession } from '../entities/chat-session.entity';
 import { CreateSessionDto, SessionType } from '../dto/create-session.dto';
 import { EndSessionDto } from '../dto/end-session.dto';
 import { SessionResponseDto } from '../dto/session-response.dto';
+import { CounselorQueueService } from './counselor-queue.service';
 
 @Injectable()
 export class SessionService {
@@ -21,6 +22,7 @@ export class SessionService {
     @InjectRepository(ChatSession)
     private readonly sessionRepository: Repository<ChatSession>,
     @InjectRedis() private readonly redis: Redis,
+    private readonly counselorQueueService: CounselorQueueService,
   ) {}
 
   async createSession(
@@ -151,6 +153,9 @@ export class SessionService {
 
       // Remove from active sessions cache
       await this.removeFromActiveSessionsCache(session.id);
+
+      // Clear counselor queue status if this was a counselor session
+      await this.counselorQueueService.completeSessionBySessionId(session.id);
 
       this.logger.log(`Ended session: ${session.id}`);
 
