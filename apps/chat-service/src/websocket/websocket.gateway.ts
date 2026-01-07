@@ -562,5 +562,79 @@ export class WebSocketGateway
       this.logger.error(`Failed to send to user: ${error.message}`);
     }
   }
+
+  /**
+   * Handle sending WebSocket messages to all users in a session
+   */
+  @OnEvent('websocket.send.to.session')
+  handleSendToSession(payload: {
+    sessionId: string;
+    event: string;
+    data: any;
+  }) {
+    try {
+      const { sessionId, event, data } = payload;
+      this.server.to(sessionId).emit(event as any, data);
+      this.logger.debug(`Sent ${event} to session ${sessionId}`);
+    } catch (error) {
+      this.logger.error(`Failed to send to session: ${error.message}`);
+    }
+  }
+
+  /**
+   * Broadcast messages sent in the background (AI, System)
+   */
+  @OnEvent('message.sent')
+  handleMessageSent(event: {
+    messageId: string;
+    sessionId: string;
+    senderType: string;
+    content: string;
+  }) {
+    try {
+      // User messages are already broadcasted via handleSendMessage
+      // We only need to broadcast messages generated in the background
+      if (event.senderType !== SenderType.USER) {
+        this.server.to(event.sessionId).emit('newMessage', {
+          id: event.messageId,
+          sessionId: event.sessionId,
+          senderType: event.senderType,
+          content: event.content,
+          createdAt: new Date(),
+        });
+        this.logger.debug(
+          `Broadcasted background message ${event.messageId} to session ${event.sessionId}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(`Failed to broadcast background message: ${error.message}`);
+    }
+  }
+
+  /**
+   * Notify session when a counselor is matched
+   */
+  @OnEvent('counselor.queue.matched')
+  handleCounselorMatchedEvent(event: { counselorId: string; sessionId: string }) {
+    this.notifyCounselorAction(event.sessionId, 'join', event.counselorId);
+  }
+
+  /**
+   * Broadcast session summary when generated
+   */
+  @OnEvent('session.summary.generated')
+  handleSessionSummaryGenerated(event: { sessionId: string; summary: any }) {
+    this.server.to(event.sessionId).emit('newMessage', {
+      sessionId: event.sessionId,
+      senderType: SenderType.SYSTEM,
+      content: 'A summary of this session has been generated.',
+      metadata: {
+        type: 'summary',
+        summary: event.summary,
+      },
+      createdAt: new Date(),
+    });
+    this.logger.debug(`Broadcasted session summary to ${event.sessionId}`);
+  }
 }
 

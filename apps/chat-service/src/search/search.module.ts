@@ -12,6 +12,7 @@ import { SearchService } from './search.service';
 import { SearchController } from './search.controller';
 import { SearchProcessor } from './processors/search.processor';
 import { SearchEventListener } from './listeners/search-event.listener';
+import { MaintenanceService } from './maintenance.service';
 
 // Import AI module for dependency
 import { AiModule } from '../ai/ai.module';
@@ -147,6 +148,7 @@ import { AuthCoreModule } from 'apps/auth-service/src/auth/auth-core.module';
     SearchService,
     SearchProcessor,
     SearchEventListener,
+    MaintenanceService,
 
     // Authentication strategy
     JwtStrategy,

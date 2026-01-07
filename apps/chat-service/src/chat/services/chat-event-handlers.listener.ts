@@ -88,14 +88,12 @@ export class ChatEventHandlersService {
         },
       );
 
-      // Send welcome message for anonymous sessions
-      if (event.isAnonymous) {
-        await this.chatQueue.add(
-          'send-welcome-message',
-          { sessionId: event.sessionId },
-          { delay: 2000 },
-        );
-      }
+      // Send welcome message for all new sessions
+      await this.chatQueue.add(
+        'send-welcome-message',
+        { sessionId: event.sessionId },
+        { delay: 2000 },
+      );
     } catch (error) {
       this.logger.error(
         `Failed to handle session created event: ${error.message}`,
@@ -206,6 +204,16 @@ export class ChatEventHandlersService {
         },
       );
 
+      // Notify the user about AI analysis metrics via WebSockets
+      this.eventEmitter.emit('websocket.send.to.session', {
+        sessionId: event.sessionId,
+        event: 'aiResponseMetrics',
+        data: {
+          messageId: event.messageId,
+          content: event.content,
+        },
+      });
+
       // Check if intervention might be needed
       await this.checkForInterventionNeeds(event.sessionId);
     } catch (error) {
@@ -239,6 +247,16 @@ export class ChatEventHandlersService {
       // Update session metrics if sentiment changed
       if (event.changes.sentimentScore !== undefined) {
         await this.updateSessionSentiment(event.sessionId);
+        
+        // Notify session about sentiment update
+        this.eventEmitter.emit('websocket.send.to.session', {
+          sessionId: event.sessionId,
+          event: 'messageSentimentUpdated',
+          data: {
+            messageId: event.messageId,
+            sentimentScore: event.changes.sentimentScore,
+          },
+        });
       }
     } catch (error) {
       this.logger.error(

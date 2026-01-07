@@ -7,6 +7,7 @@ import { Repository } from 'typeorm';
 import { AiContext } from '../entities/ai-context.entity';
 import { AIService } from '../ai.service';
 import { VectorUtils } from '../../common/transformers/vector.transformer';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 interface EmbeddingJob {
   text: string;
@@ -39,6 +40,7 @@ export class AIProcessor {
     @InjectRepository(AiContext)
     private readonly aiContextRepository: Repository<AiContext>,
     private readonly aiService: AIService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   @Process('generate-embedding')
@@ -346,6 +348,12 @@ export class AIProcessor {
       });
 
       await this.aiContextRepository.save(aiContext);
+
+      // Emit summary generated event for broadcasting
+      this.eventEmitter.emit('session.summary.generated', {
+        sessionId,
+        summary: summaryData,
+      });
 
       this.logger.debug(
         `Summary generated and stored for session ${sessionId}`,
