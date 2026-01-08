@@ -218,7 +218,7 @@ export class UsersService {
     this.logger.log(`Account deactivated for user: ${userId}`);
   }
 
-  async getUserSessions(userId: string): Promise<any[]> {
+  async getUserSessions(userId: string, currentSessionId?: string): Promise<any[]> {
     const sessions = await this.sessionRepository.find({
       where: { userId, isActive: true },
       order: { createdAt: 'DESC' },
@@ -230,6 +230,7 @@ export class UsersService {
       userAgent: session.userAgent,
       createdAt: session.createdAt,
       expiresAt: session.expiresAt,
+      isCurrent: session.id === currentSessionId,
     }));
   }
 

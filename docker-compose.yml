@@ -455,6 +455,7 @@ services:
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
       - JWT_SECRET=${JWT_SECRET}
       - PLATFORM_NAME=${PLATFORM_NAME}
+      - FRONTEND_URL=${FRONTEND_URL}
     ports:
       - '4006:4006'
     depends_on:

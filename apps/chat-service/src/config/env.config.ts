@@ -227,15 +227,15 @@ export class EnvironmentVariables {
   // Throttling
   @IsNumber()
   @Type(() => Number)
-  THROTTLE_SHORT_LIMIT: number = 10;
+  THROTTLE_SHORT_LIMIT: number = 100;
 
   @IsNumber()
   @Type(() => Number)
-  THROTTLE_MEDIUM_LIMIT: number = 50;
+  THROTTLE_MEDIUM_LIMIT: number = 500;
 
   @IsNumber()
   @Type(() => Number)
-  THROTTLE_LONG_LIMIT: number = 200;
+  THROTTLE_LONG_LIMIT: number = 1000;
 
   // Email
   @IsString()

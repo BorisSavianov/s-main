@@ -269,8 +269,9 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'Sessions retrieved successfully' })
   async getCurrentUserSessions(
     @GetUser('userId') userId: string,
+    @GetUser('sessionId') sessionId: string,
   ): Promise<ApiResponseDto> {
-    const sessions = await this.usersService.getUserSessions(userId);
+    const sessions = await this.usersService.getUserSessions(userId, sessionId);
 
     return {
       success: true,

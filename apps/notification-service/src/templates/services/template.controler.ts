@@ -25,6 +25,9 @@ import {
   UpdateTemplateDto,
   TestTemplateDto,
 } from '../dtos/template.dto';
+import { RolesGuard } from 'apps/auth-service/src/auth/guards/roles.guard';
+import { UserRole } from 'apps/auth-service/src/database/entities/user.entity';
+import { Roles } from 'apps/auth-service/src/auth/decorators/roles.decorator';
 
 @ApiTags('notification-templates')
 @Controller('notification-templates')
@@ -58,6 +61,8 @@ export class TemplateController {
   }
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Create a new notification template' })
   @ApiResponse({ status: 201, description: 'Template created successfully' })
   async createTemplate(@Body() createTemplateDto: CreateTemplateDto) {
@@ -65,6 +70,8 @@ export class TemplateController {
   }
 
   @Put(':templateName')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Update a notification template' })
   @ApiParam({ name: 'templateName', description: 'Template name' })
   @ApiResponse({ status: 200, description: 'Template updated successfully' })

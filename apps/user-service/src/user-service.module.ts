@@ -46,17 +46,17 @@ import { UserPreferences } from './database/entities/user-preferences.entity';
         {
           name: 'short',
           ttl: 1000,
-          limit: 10,
+          limit: 100,
         },
         {
           name: 'medium',
           ttl: 10000,
-          limit: 50,
+          limit: 500,
         },
         {
           name: 'long',
           ttl: 60000,
-          limit: 100,
+          limit: 1000,
         },
       ],
       inject: [ConfigService],
