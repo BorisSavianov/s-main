@@ -40,6 +40,7 @@ interface MessageUpdatedEvent {
   messageId: string;
   sessionId: string;
   changes: Record<string, any>;
+  metadata?: Record<string, any>;
 }
 
 @Injectable()
@@ -74,6 +75,12 @@ export class ChatEventHandlersService {
     try {
       this.logger.debug(`Session created: ${event.sessionId}`);
 
+      // Check if session has a counselor assigned
+      const session = await this.chatSessionRepository.findOne({
+        where: { id: event.sessionId },
+        select: ['id', 'counselorId'],
+      });
+
       // Queue initial setup tasks
       await this.chatQueue.add(
         'session-setup',
@@ -88,12 +95,14 @@ export class ChatEventHandlersService {
         },
       );
 
-      // Send welcome message for all new sessions
-      await this.chatQueue.add(
-        'send-welcome-message',
-        { sessionId: event.sessionId },
-        { delay: 2000 },
-      );
+      // Send welcome message for AI sessions (no counselor assigned)
+      if (session && !session.counselorId) {
+        await this.chatQueue.add(
+          'send-welcome-message',
+          { sessionId: event.sessionId },
+          { delay: 2000 },
+        );
+      }
     } catch (error) {
       this.logger.error(
         `Failed to handle session created event: ${error.message}`,
@@ -145,24 +154,33 @@ export class ChatEventHandlersService {
   @OnEvent('message.sent')
   async handleMessageSent(event: MessageSentEvent) {
     try {
-      this.logger.debug(`Message sent: ${event.messageId}, moderating content`);
-
-      // Queue content moderation
-      await this.chatQueue.add(
-        'moderate-content',
-        {
-          messageId: event.messageId,
-          content: event.content,
-          sessionId: event.sessionId,
-        },
-        {
-          priority: 1, // High priority for safety
-          attempts: 2,
-        },
-      );
-
       // Update session activity
       await this.updateSessionActivity(event.sessionId);
+
+      // Skip moderation for counselor-user sessions
+      const session = await this.chatSessionRepository.findOne({
+        where: { id: event.sessionId },
+      });
+
+      if (session?.counselorId === null || session?.counselorId === undefined) {
+        // Queue content moderation for AI-only sessions
+        await this.chatQueue.add(
+          'moderate-content',
+          {
+            messageId: event.messageId,
+            content: event.content,
+            sessionId: event.sessionId,
+          },
+          {
+            priority: 1, // High priority for safety
+            attempts: 2,
+          },
+        );
+      } else {
+        this.logger.debug(
+          `Skipping moderation for counselor session: ${event.sessionId}`,
+        );
+      }
 
       // Queue sentiment analysis for user messages
       if (event.senderType === 'user') {
@@ -228,7 +246,13 @@ export class ChatEventHandlersService {
     try {
       this.logger.debug(`Message updated: ${event.messageId}`);
 
-      // If the message was flagged, queue for review
+      // Prevention: If this update came from the processor itself, don't re-queue flagging
+      if (event.metadata?.source === 'processor') {
+        this.logger.debug(`Skipping processing for processor-originated update: ${event.messageId}`);
+        return;
+      }
+
+      // If the message was flagged externally (not yet in the review flow), queue for review
       if (event.changes.isFlagged) {
         await this.chatQueue.add(
           'flag-for-review',
@@ -273,40 +297,48 @@ export class ChatEventHandlersService {
     severity: string;
   }) {
     try {
-      await this.chatMessageRepository.update(event.messageId, {
-        isFlagged: true,
-        flagReason: event.flagType,
-      });
-
-      this.logger.warn(1);
-
-      // Emit event (no await)
+      // We DON'T update the DB here anymore. We queue the flagging task which handles it atomically.
+      
+      // Emit event for crisis detection (no await)
       this.eventEmitter.emit('user.crisis.detected', {
         sessionId: event.sessionId,
         messageId: event.messageId,
-        crisisType: 'self_harm_indicators',
-        confidence: 0.8,
+        crisisType: 'content_violation', // Mapping generic flag to crisis system
+        confidence: 0.9,
       });
 
-      this.logger.warn(2);
-
+      // Queue the official flagging and review process
       await this.chatQueue.add(
-        'immediate-intervention',
+        'flag-for-review',
         {
-          sessionId: event.sessionId,
           messageId: event.messageId,
-          flagType: event.flagType,
+          sessionId: event.sessionId,
+          flagReason: event.flagType,
         },
         {
-          priority: 20,
+          priority: 2,
           attempts: 1,
         },
       );
 
-      this.logger.warn(3);
+      // If critical, queue immediate intervention
+      if (event.severity === 'critical') {
+        await this.chatQueue.add(
+          'immediate-intervention',
+          {
+            sessionId: event.sessionId,
+            messageId: event.messageId,
+            flagType: event.flagType,
+          },
+          {
+            priority: 20,
+            attempts: 1,
+          },
+        );
+      }
 
       this.logger.warn(
-        `Content flagged: ${event.messageId} - ${event.flagType} (${event.severity})`,
+        `Content flagging initiated: ${event.messageId} - ${event.flagType} (${event.severity})`,
       );
     } catch (error) {
       this.logger.error(
@@ -522,8 +554,13 @@ You don't have to go through this alone. Please reach out for professional help.
         `Counselor ${event.counselorId} matched with session ${event.sessionId}`,
       );
 
+      // Persist counselorId to the session in the database
+      await this.chatSessionRepository.update(event.sessionId, {
+        counselorId: event.counselorId,
+        updatedAt: new Date(),
+      });
+
       // Emit a WebSocket event to notify the counselor they've been matched
-      // The counselor's page polls for status, but we also emit real-time event
       this.eventEmitter.emit('websocket.send.to.user', {
         userId: event.counselorId,
         event: 'counselorMatched',

@@ -46,7 +46,7 @@ export class ConnectionManager {
     try {
       const connectionInfo: ConnectionInfo = {
         socketId: socket.id,
-        userId: user?.id,
+        userId: user?.id || user?.sub,
         sessionIds: new Set(),
         connectedAt: new Date(),
         lastActivity: new Date(),

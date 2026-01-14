@@ -35,6 +35,7 @@ interface SendMessageDto {
   sessionId: string;
   content: string;
   contentType?: string;
+  senderType?: string;
 }
 
 interface TypingDto {
@@ -251,17 +252,20 @@ export class WebSocketGateway
         throw new WsException('Not a member of this session');
       }
 
-      // Determine sender type based on session info
+      // Determine sender type based on session info and authenticated user ID
       const sessionInfo = await this.websocketService.getSessionInfo(sessionId);
-      let senderType = SenderType.USER;
+      const authenticatedUserId = client.data.userId || userId;
       
       this.logger.debug(`Session counselor id: ${sessionInfo?.counselorId}`);
-      this.logger.debug(`User id: ${userId}`);
+      this.logger.debug(`Authenticated user id: ${authenticatedUserId}`);
 
+      let senderType = SenderType.USER;
       // If the sender is the counselor assigned to this session, mark as counselor
-      if (sessionInfo?.counselorId && userId === sessionInfo.counselorId) {
+      if (sessionInfo?.counselorId && authenticatedUserId === sessionInfo.counselorId) {
         senderType = SenderType.COUNSELOR;
       }
+
+      this.logger.debug(`Final determined senderType: ${senderType}`);
 
       // Create and save message
       const message = await this.websocketService.createMessage({
@@ -592,9 +596,8 @@ export class WebSocketGateway
     content: string;
   }) {
     try {
-      // User messages are already broadcasted via handleSendMessage
-      // We only need to broadcast messages generated in the background
-      if (event.senderType !== SenderType.USER) {
+      // User and Counselor messages are already broadcasted via handleSendMessage
+      if (event.senderType === SenderType.AI || event.senderType === SenderType.SYSTEM) {
         this.server.to(event.sessionId).emit('newMessage', {
           id: event.messageId,
           sessionId: event.sessionId,

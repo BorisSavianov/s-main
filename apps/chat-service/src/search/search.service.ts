@@ -1115,6 +1115,7 @@ export class SearchService {
       await this.elasticsearchService.update({
         index: this.INDEX_NAME,
         id: messageId,
+        retry_on_conflict: 3, // Handle rapid sequential updates
         body: {
           doc: updateDoc,
         },

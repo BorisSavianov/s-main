@@ -234,16 +234,18 @@ How are you feeling today? What would you like to talk about?`,
         `Flagging message for review: ${messageId} - ${flagReason}`,
       );
 
+      // Update message in database
       await this.chatMessageRepository.update(messageId, {
         isFlagged: true,
         flagReason: flagReason,
       });
 
-      // Emit message.updated for indexing
+      // Emit message.updated but label it as coming from the processor to prevent loops
       this.eventEmitter.emit('message.updated', {
         messageId,
         sessionId,
         changes: { isFlagged: true, flagReason },
+        metadata: { source: 'processor' }, // Prevention for recursion
       });
 
       // Use notification service via microservice
@@ -381,17 +383,9 @@ Your life has value and help is available. Please don't hesitate to reach out.`,
       const moderationResult = await this.aiService.shouldFlagMessage(content);
 
       if (moderationResult.shouldFlag) {
-        await this.chatMessageRepository.update(messageId, {
-          flagReason: moderationResult.reason,
-        });
-
-        // Emit message.updated for indexing
-        this.eventEmitter.emit('message.updated', {
-          messageId,
-          sessionId,
-          changes: { isFlagged: true, flagReason: moderationResult.reason },
-        });
-
+        // We DON'T update the DB here. We let handleContentFlagged/flag-for-review handle it.
+        // This avoids redundant updates and potential loops.
+        
         this.eventEmitter.emit('content.flagged', {
           messageId,
           sessionId,
@@ -400,7 +394,7 @@ Your life has value and help is available. Please don't hesitate to reach out.`,
         });
 
         this.logger.warn(
-          `Content flagged: ${messageId} - ${moderationResult.reason}`,
+          `Content identified for flagging: ${messageId} - ${moderationResult.reason}`,
         );
       }
     } catch (error) {
@@ -507,7 +501,10 @@ Your life has value and help is available. Please don't hesitate to reach out.`,
 
       this.logger.log('Admin notification sent successfully');
     } catch (error) {
-      this.logger.error(`Failed to send admin notification: ${error.message}`);
+      this.logger.error(
+        `Failed to send admin notification for message ${notification.messageId}: ${error.message}`,
+        error.stack, // Include stack trace for better debugging
+      );
       // Fallback: could still work without notification service
     }
   }
@@ -534,7 +531,10 @@ Your life has value and help is available. Please don't hesitate to reach out.`,
 
       this.logger.log('Crisis team alert sent successfully');
     } catch (error) {
-      this.logger.error(`Failed to alert crisis team: ${error.message}`);
+      this.logger.error(
+        `Failed to alert crisis team for session ${alert.sessionId}: ${error.message}`,
+        error.stack,
+      );
       // This is critical, so we might want to have a fallback mechanism
       throw error;
     }
