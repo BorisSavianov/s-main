@@ -29,6 +29,7 @@ import { SchedulingService } from '../services/scheduling.service';
 import { AvailabilityService } from '../services/availability.service';
 import { CreateMeetingDto } from '../dto/create-meeting.dto';
 import { UpdateMeetingDto } from '../dto/update-meeting.dto';
+import { UpdateMeetingRoomDto } from '../dto/update-meeting-room.dto';
 import { SchedulingQueryDto } from '../dto/scheduling-query.dto';
 import { CreateTimeSlotDto } from '../dto/create-time-slot.dto';
 import { EnhancedSchedulingService } from '../services/enhanced-scheduling.service';
@@ -269,6 +270,22 @@ export class SchedulingController {
   async ensureVideoRoom(@Param('id', ParseUUIDPipe) id: string) {
     const roomUrl = await this.enhancedSchedulingService.ensureVideoRoom(id);
     return { roomUrl };
+  }
+
+  @InternalAuth()
+  @Put('meetings/:id/video-room')
+  @ApiOperation({
+    summary: 'Update meeting with video room details',
+    description: 'Internal endpoint to sync meeting room details from video service.',
+  })
+  @ApiParam({ name: 'id', type: 'uuid', description: 'Meeting ID' })
+  @ApiBody({ type: UpdateMeetingRoomDto })
+  @ApiResponse({ status: 200, description: 'Meeting room details updated' })
+  async updateMeetingRoomDetails(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: UpdateMeetingRoomDto,
+  ) {
+    return this.schedulingService.updateMeetingRoomDetails(id, body);
   }
 
   @Get('meetings/:id/room-access')

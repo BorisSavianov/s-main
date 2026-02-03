@@ -258,6 +258,33 @@ export class SchedulingService {
     return await this.meetingRepository.save(meeting);
   }
 
+  async updateMeetingRoomDetails(
+    id: string,
+    details: {
+      videoRoomId?: string;
+      videoRoomUrl?: string;
+      accessCode?: string;
+    },
+  ): Promise<ScheduledMeeting> {
+    const meeting = await this.meetingRepository.findOne({ where: { id } });
+
+    if (!meeting) {
+      throw new NotFoundException('Meeting not found');
+    }
+
+    if (details.videoRoomId) {
+      meeting.meetingRoomId = details.videoRoomId;
+    }
+    if (details.videoRoomUrl) {
+      meeting.meetingRoomUrl = details.videoRoomUrl;
+    }
+    if (details.accessCode) {
+      meeting.meetingRoomPassword = details.accessCode;
+    }
+
+    return await this.meetingRepository.save(meeting);
+  }
+
   async cancelMeeting(
     id: string,
     userId: string,

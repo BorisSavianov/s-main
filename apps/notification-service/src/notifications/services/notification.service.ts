@@ -6,7 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, LessThanOrEqual, In } from 'typeorm';
+import { Repository, MoreThan, LessThanOrEqual, In, IsNull } from 'typeorm';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { MailerService } from './mailer.service';
@@ -411,7 +411,7 @@ export class NotificationService {
     const unreadCount = await this.notificationRepository.count({
       where: {
         userId,
-        readAt: undefined,
+        readAt: IsNull(),
         type: query.type ? query.type : undefined,
       },
     });

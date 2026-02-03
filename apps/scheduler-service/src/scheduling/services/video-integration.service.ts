@@ -85,7 +85,13 @@ export class VideoIntegrationService {
         ),
       );
 
-      const roomData = response.data.data;
+      const roomData = response.data?.data ?? response.data;
+
+      if (!roomData?.roomId) {
+        throw new Error(
+          `Video service response missing roomId for meeting ${meeting.id}`,
+        );
+      }
 
       this.logger.log(
         `Video room created successfully: ${roomData.roomId} for meeting ${meeting.id}`,
