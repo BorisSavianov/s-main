@@ -383,6 +383,24 @@ export class VideoService {
           userId,
         )));
 
+    this.logger.warn('Has access:', hasAccess);
+    this.logger.warn('Room status:', room.hostUserId);
+    this.logger.warn('Participant count:', room.participants?.some((p) => p.userId === userId));
+    this.logger.warn('User id:', userId);
+    this.logger.warn('Code:', room.accessCode);
+    this.logger.warn('Moderator code:', room.moderatorCode);
+
+    this.logger.log("Meeting access: ", room.meetingId &&
+        (await this.schedulingIntegration.validateMeetingAccess(
+          room.meetingId,
+          userId,
+        )))
+    this.logger.log("Meeting access: ", room.meetingId)
+    this.logger.log("2 part", await this.schedulingIntegration.validateMeetingAccess(
+      room.meetingId,
+      userId,
+    ))
+
     if (!hasAccess) {
       throw new BadRequestException('Access denied');
     }

@@ -208,13 +208,19 @@ export class VideoIntegrationService {
   /**
    * Check if room is active
    */
-  async isRoomActive(roomId: string): Promise<boolean> {
+  async isRoomActive(roomId: string, userId?: string): Promise<boolean> {
     try {
+      const headers: any = {
+        'X-Service': 'scheduler-service',
+      };
+      
+      if (userId) {
+        headers['X-User-ID'] = userId;
+      }
+
       const response = await firstValueFrom(
         this.httpService.get(`${this.videoServiceUrl}/video/rooms/${roomId}`, {
-          headers: {
-            'X-Service': 'scheduler-service',
-          },
+          headers,
           timeout: 5000,
         }),
       );
@@ -232,15 +238,21 @@ export class VideoIntegrationService {
   /**
    * Get room participants count
    */
-  async getRoomParticipantsCount(roomId: string): Promise<number> {
+  async getRoomParticipantsCount(roomId: string, userId?: string): Promise<number> {
     try {
+      const headers: any = {
+        'X-Service': 'scheduler-service',
+      };
+      
+      if (userId) {
+        headers['X-User-ID'] = userId;
+      }
+
       const response = await firstValueFrom(
         this.httpService.get(
           `${this.videoServiceUrl}/video/rooms/${roomId}/stats`,
           {
-            headers: {
-              'X-Service': 'scheduler-service',
-            },
+            headers,
             timeout: 5000,
           },
         ),
@@ -280,7 +292,9 @@ export class VideoIntegrationService {
         ),
       );
 
-      return response.data?.data?.valid === true;
+      this.logger.debug(`Room ${roomId} access validated successfully: ${JSON.stringify(response.data)}`);
+
+      return response.data.valid === true;
     } catch (error) {
       this.logger.error(
         `Failed to validate room access for ${roomId}:`,

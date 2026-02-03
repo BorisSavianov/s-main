@@ -1,4 +1,4 @@
-import { Public } from '../../decorators/public.decorator';
+import { Public } from 'apps/user-service/src/auth/decorators/public.decorator';
 // apps/video-service/src/video/services/video.controller.ts
 import {
   Controller,
@@ -27,7 +27,7 @@ import { VideoService } from '../services/video.service';
 import { CreateRoomDto } from '../dtos/create-room.dto';
 import { JoinRoomDto } from '../dtos/join-room.dto';
 import { UpdateMediaStateDto } from '../dtos/update-media-state.dto';
-import { GetUser } from 'apps/mood-service/src/decorators/get-user.decorator';
+import { GetUser } from 'apps/user-service/src/auth/decorators/get-user.decorator';
 import { InternalAuth } from 'apps/user-service/src/auth/decorators/internal-auth.decorator';
 
 
@@ -142,10 +142,19 @@ export class VideoController {
         userId,
       );
 
+      console.log('Room:', JSON.stringify(room));
+
       const hasAccess =
         room.hostUserId === userId ||
         accessCode === room.accessCode ||
         accessCode === room.moderatorCode;
+
+      console.log('Has access:', hasAccess);
+      console.log('Room status:', room.status);
+      console.log('Participant count:', room.activeParticipantCount);
+      console.log('Max participants:', room.maxParticipants);
+      console.log('Is full:', room.activeParticipantCount >= room.maxParticipants);
+      console.log('Access code:', accessCode);
 
       return {
         valid: hasAccess,

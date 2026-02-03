@@ -215,6 +215,7 @@ export class EnhancedSchedulingService {
       try {
         const isActive = await this.videoIntegrationService.isRoomActive(
           meeting.meetingRoomId,
+          userId,
         );
         if (isActive) {
           await this.videoIntegrationService.endRoom(meeting.meetingRoomId, userId);
@@ -311,7 +312,11 @@ export class EnhancedSchedulingService {
   /**
    * Get meeting with room status
    */
-  async getMeetingWithRoomStatus(id: string, userId: string): Promise<any> {
+  async getMeetingWithRoomStatus(
+    id: string,
+    userId: string,
+    includeRoomStatus: boolean = true,
+  ): Promise<any> {
     const meeting = await this.meetingRepository.findOne({
       where: { id },
       relations: ['user', 'counselor'],
@@ -327,15 +332,17 @@ export class EnhancedSchedulingService {
 
     const result: any = { ...meeting };
 
-    // Add room status if video meeting
-    if (meeting.meetingRoomId) {
+    // Add room status if video meeting AND requested
+    if (meeting.meetingRoomId && includeRoomStatus) {
       try {
         const isActive = await this.videoIntegrationService.isRoomActive(
           meeting.meetingRoomId,
+          userId,
         );
         const participantCount = isActive
           ? await this.videoIntegrationService.getRoomParticipantsCount(
               meeting.meetingRoomId,
+              userId,
             )
           : 0;
 
@@ -441,6 +448,7 @@ export class EnhancedSchedulingService {
         if (meeting.meetingRoomId) {
           const isActive = await this.videoIntegrationService.isRoomActive(
             meeting.meetingRoomId,
+            meeting.counselorId,
           );
 
           if (!isActive) {

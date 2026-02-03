@@ -171,8 +171,10 @@ export class SchedulingController {
   async getMeetingById(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('userId') userId: string,
+    @Query('includeRoomStatus') includeRoomStatus?: string,
   ) {
-    return this.enhancedSchedulingService.getMeetingWithRoomStatus(id, userId);
+    const include = includeRoomStatus !== 'false';
+    return this.enhancedSchedulingService.getMeetingWithRoomStatus(id, userId, include);
   }
 
   @Put('meetings/:id')
@@ -317,6 +319,9 @@ export class SchedulingController {
       userId,
       accessCode,
     );
+
+    console.log("accessCode: ", accessCode);
+    console.log("validateRoomAccess: ", valid);
 
     return {
       valid,

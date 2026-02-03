@@ -65,8 +65,8 @@ async generateAvailabilitySlots(
   for (const timeSlot of timeSlots) {
     const dateStr = new Date(timeSlot.slotDate).toISOString().split('T')[0];
 
-    const rangeStart = new Date(`${dateStr}T${timeSlot.startTime}`);
-    const rangeEnd = new Date(`${dateStr}T${timeSlot.endTime}`);
+    const rangeStart = new Date(`${dateStr}T${timeSlot.startTime}Z`);
+    const rangeEnd = new Date(`${dateStr}T${timeSlot.endTime}Z`);
 
     // --- SPLIT INTO MULTIPLE SLOTS BY DURATION ---
     let current = new Date(rangeStart);

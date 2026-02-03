@@ -32,17 +32,11 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-
-    if (isPublic) {
-      return true;
-    }
-
-    // Check for internal service auth
+    // Check for internal service auth FIRST
     const request = context.switchToHttp().getRequest();
+    this.logger.debug(`[JwtAuthGuard] Headers: ${JSON.stringify(request.headers)}`);
+    this.logger.debug(`[JwtAuthGuard] x-user-id header: ${request.headers['x-user-id']}`);
+    this.logger.debug(`[JwtAuthGuard] x-service header: ${request.headers['x-service']}`);
     const serviceName = request.headers['x-service'] as string;
     const userId = request.headers['x-user-id'] as string;
 
@@ -68,6 +62,15 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
         isService: true,
       };
       
+      return true;
+    }
+
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isPublic) {
       return true;
     }
 

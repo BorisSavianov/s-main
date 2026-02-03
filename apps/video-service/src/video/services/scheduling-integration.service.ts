@@ -40,7 +40,7 @@ export class SchedulingIntegrationService {
     try {
       const response = await firstValueFrom(
         this.httpService.get(
-          `${this.schedulingServiceUrl}/meetings/${meetingId}`,
+          `${this.schedulingServiceUrl}/meetings/${meetingId}?includeRoomStatus=false`,
           {
             headers: {
               'X-User-ID': userId, // For service-to-service auth
@@ -53,13 +53,17 @@ export class SchedulingIntegrationService {
 
       const meeting = response.data.data;
       
-      this.logger.debug(`Meeting counselorId: ${meeting.counselor?.id}`);
-      this.logger.debug(`Meeting clientId: ${meeting.user?.id}`);
-      this.logger.debug(`User id: ${userId}`);
-      
       // Check if user has access to this meeting
       const hasAccess =
         meeting.counselor?.id === userId || meeting.user?.id === userId;
+
+      this.logger.debug(`User ${userId} has access to meeting ${meetingId}: ${hasAccess}`);
+      this.logger.debug(`Meeting: ${JSON.stringify(meeting)}`);
+      this.logger.debug(`Counselor: ${JSON.stringify(meeting.counselor)}`);
+      this.logger.debug(`User: ${JSON.stringify(meeting.user)}`);
+      this.logger.debug(`Counselor id: ${meeting.counselor?.id}`);
+      this.logger.debug(`User id: ${meeting.user?.id}`);
+      this.logger.debug(`User id: ${userId}`);
 
       if (!hasAccess) {
         this.logger.warn(
