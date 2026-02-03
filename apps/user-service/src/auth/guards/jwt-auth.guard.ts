@@ -71,6 +71,19 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     ]);
 
     if (isPublic) {
+      const authHeader = request.headers['authorization'] as string | undefined;
+      if (authHeader) {
+        try {
+          const canActivate = await super.canActivate(context);
+          return canActivate as boolean;
+        } catch (err) {
+          this.logger.debug(
+            `Optional public auth failed (${authHeader.slice(0, 10)}...), falling back to anonymous access`,
+          );
+          return true;
+        }
+      }
+
       return true;
     }
 

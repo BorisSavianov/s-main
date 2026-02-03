@@ -141,20 +141,13 @@ export class VideoController {
         roomId,
         userId,
       );
-
+      console.log("UserId: ",userId)
       console.log('Room:', JSON.stringify(room));
 
       const hasAccess =
         room.hostUserId === userId ||
         accessCode === room.accessCode ||
         accessCode === room.moderatorCode;
-
-      console.log('Has access:', hasAccess);
-      console.log('Room status:', room.status);
-      console.log('Participant count:', room.activeParticipantCount);
-      console.log('Max participants:', room.maxParticipants);
-      console.log('Is full:', room.activeParticipantCount >= room.maxParticipants);
-      console.log('Access code:', accessCode);
 
       return {
         valid: hasAccess,
