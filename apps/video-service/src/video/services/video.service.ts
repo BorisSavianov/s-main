@@ -253,9 +253,6 @@ export class VideoService {
     // Generate session token for this participant
     const sessionToken = this.generateSessionToken(roomId, userId);
 
-    // Notify other participants about new joiner
-    this.videoGateway.notifyParticipantJoined(roomId, participant);
-
     this.logger.log(`User ${userId} (${displayName}) joined room ${roomId}`);
 
     return {
@@ -291,7 +288,7 @@ export class VideoService {
         room.participants?.filter((p) => p.status === 'connected').length || 0;
 
       // End room if no active participants or if host left
-      if (activeParticipants === 0 || userId === room.hostUserId) {
+      if (activeParticipants === 0) {
         await this.endRoom(roomId, userId);
       } else {
         // Notify other participants about departure

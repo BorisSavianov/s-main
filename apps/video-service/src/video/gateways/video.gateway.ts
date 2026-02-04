@@ -405,16 +405,6 @@ export class VideoGateway
   }
 
   // Public methods for service to call
-  public notifyParticipantJoined(
-    roomId: string,
-    participant: VideoParticipant,
-  ): void {
-    this.server.to(roomId).emit('participant-joined', {
-      participant,
-      timestamp: new Date(),
-    });
-  }
-
   public notifyParticipantLeft(
     roomId: string,
     participant: VideoParticipant,

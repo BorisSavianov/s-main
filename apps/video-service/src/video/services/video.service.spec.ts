@@ -70,7 +70,6 @@ describe('VideoService', () => {
     };
 
     const mockVideoGateway = {
-      notifyParticipantJoined: jest.fn(),
       notifyParticipantLeft: jest.fn(),
       notifyRoomEnded: jest.fn(),
       notifyMediaStateChanged: jest.fn(),
