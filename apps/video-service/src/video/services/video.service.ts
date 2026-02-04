@@ -203,7 +203,7 @@ export class VideoService {
 
     if (participant) {
       // Rejoin existing participant
-      participant.status = 'connecting';
+      participant.status = 'connected';
       participant.displayName = displayName || participant.displayName;
       participant.deviceCapabilities = {
         ...participant.deviceCapabilities,
@@ -223,9 +223,12 @@ export class VideoService {
           screenShare: false,
           ...deviceCapabilities,
         },
-        status: 'connecting',
+        status: 'connected',
       });
     }
+
+    participant.roomId = roomId;
+    participant.room = room;
 
     participant = await this.participantRepository.save(participant);
 
@@ -233,7 +236,10 @@ export class VideoService {
     if (room.status === 'waiting') {
       room.status = 'active';
       room.startedAt = new Date();
-      await this.roomRepository.save(room);
+      await this.roomRepository.update(
+        { id: room.id },
+        { status: room.status, startedAt: room.startedAt },
+      );
 
       // Mark meeting as in progress if linked
       if (room.meetingId) {
