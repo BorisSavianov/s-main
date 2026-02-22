@@ -248,15 +248,6 @@ GET /api/v1/search/semantic?q=stress%20management
 Authorization: Bearer <token>
 ```
 
-### Пример: web + AI поток
-```http
-POST /api/v1/web-search/enrich
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{ "query": "breathing techniques for anxiety" }
-```
-
 ### Пример: включване в counselor queue
 ```http
 POST /api/v1/chat/counselor-queue/join
