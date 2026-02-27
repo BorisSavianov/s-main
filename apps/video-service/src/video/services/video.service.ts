@@ -223,6 +223,11 @@ export class VideoService {
           screenShare: false,
           ...deviceCapabilities,
         },
+        mediaState: {
+          video: deviceCapabilities?.video ?? true,
+          audio: deviceCapabilities?.audio ?? true,
+          screenShare: false,
+        },
         status: 'connected',
       });
     }
